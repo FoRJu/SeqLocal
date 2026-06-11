@@ -1,4 +1,4 @@
-# ONT Sequencing Service Pipeline
+# SeqLocal — ONT Sequencing Service Pipeline
 
 Production data-analysis pipeline for an oncology-CRO Oxford Nanopore
 (MinION / PromethION) sequencing service. Turns raw ONT signal into customer

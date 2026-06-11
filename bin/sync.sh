@@ -3,7 +3,7 @@
 #
 # One-directional (Mac → box): the Mac is the editing source, the box is the runtime.
 # Configure the destination once in an untracked .sync.env at repo root:
-#     SYNC_DEST="user@ont-box:~/ont-pipeline"
+#     SYNC_DEST="user@ont-box:~/SeqLocal"
 # See docs/DEV_WORKFLOW.md.
 set -euo pipefail
 
@@ -17,7 +17,7 @@ if [[ -z "${SYNC_DEST:-}" && -f .sync.env ]]; then
 fi
 if [[ -z "${SYNC_DEST:-}" ]]; then
   echo "!! SYNC_DEST not set. Create .sync.env:" >&2
-  echo '   echo '\''SYNC_DEST="user@ont-box:~/ont-pipeline"'\'' > .sync.env' >&2
+  echo '   echo '\''SYNC_DEST="user@ont-box:~/SeqLocal"'\'' > .sync.env' >&2
   exit 1
 fi
 

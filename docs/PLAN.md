@@ -30,7 +30,7 @@ holds the design rationale, data flows, and build order. Read this to understand
 ## Target directory structure
 
 ```
-ont-pipeline/
+SeqLocal/
 ├── CLAUDE.md
 ├── environment.yml
 ├── docs/

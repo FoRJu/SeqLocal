@@ -14,14 +14,14 @@ record.
 
 ```bash
 # one-time: create a private remote (GitHub example) and push
-gh repo create ont-pipeline --private --source=. --remote=origin
+gh repo create SeqLocal --private --source=. --remote=origin
 git push -u origin main
 ```
 
 Then, on the Ubuntu box:
 
 ```bash
-git clone <remote-url> ont-pipeline && cd ont-pipeline
+git clone <remote-url> SeqLocal && cd SeqLocal
 # provision once, per docs/SETUP.md:
 mamba env create -f environment.yml
 mamba env create -f environment-medaka.yml
@@ -39,18 +39,18 @@ paths (`tools/`, `work/`, `results/`, `*.pod5`, `.git`).
 
 ```bash
 # one-time: point it at your box (host + path). Stored untracked in .sync.env
-echo 'SYNC_DEST="user@ont-box:~/ont-pipeline"' > .sync.env
+echo 'SYNC_DEST="user@ont-box:~/SeqLocal"' > .sync.env
 
 # each iteration: push Mac → box
 bash bin/sync.sh
 
 # then run on the box over SSH, e.g.
-ssh user@ont-box 'cd ~/ont-pipeline && mamba run -n ont-tools nextflow run workflows/main.nf ...'
+ssh user@ont-box 'cd ~/SeqLocal && bin/ont_pipeline.sh --pod5_dir <dir> --barcode_kit <KIT>'
 ```
 
 rsync is one-directional (Mac → box) by design: the Mac stays the editing source, the
 box never edits code. Results/outputs are pulled back explicitly when needed
-(`rsync -avz user@ont-box:~/ont-pipeline/results/ ./results/`), not auto-synced.
+(`rsync -avz user@ont-box:~/SeqLocal/results/ ./results/`), not auto-synced.
 
 ## 3. Alternative — VS Code Remote-SSH (edit in place)
 
