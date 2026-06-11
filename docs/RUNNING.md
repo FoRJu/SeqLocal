@@ -18,13 +18,31 @@ bin/ont_pipeline.sh \
   --outdir results
 ```
 
-The wrapper asserts `dorado --version == 2.0.0`, then launches Nextflow with
-`-profile conda` (override with `PROFILE=docker|singularity`). Validate the kit string
-against your installed binary first:
+Before launching Nextflow the wrapper runs the integrity/kill-switch chokepoint
+(non-root/`bfxsvc`, kill-flag, code-hash, MinKNOW yield) and asserts
+`dorado --version == 2.0.0`, then launches with `-profile conda` (override with
+`PROFILE=docker|singularity`). See [security.md](security.md) for the hardening seams.
+Validate the kit string against your installed binary first:
 
 ```bash
 tools/dorado/bin/dorado demux --help    # shows the valid --kit-name choices
 ```
+
+### Preflight gates (entrypoint) & run-metadata flags
+
+The wrapper refuses to run as root, refuses if the kill-flag is present, refuses on a
+code-hash mismatch, and refuses if a flow cell is declared active. Relevant env:
+
+| Env | Effect |
+|-----|--------|
+| `SEQLOCAL_REQUIRE_BFXSVC=1` | hard-fail unless the runtime account is `bfxsvc` (set in prod) |
+| `SEQLOCAL_KILL_FLAG` | kill-flag path (default `/var/lib/seqlocal/KILL`) |
+| `SEQLOCAL_CODE_HASH` | expected repo code sha256 (else `/var/lib/seqlocal/code.sha256`) |
+| `SEQLOCAL_FLOWCELL_ACTIVE=1` | declare a live flow cell → refuse (yield to MinKNOW) |
+
+Optional run-metadata flags flow into the run manifest (all default to empty / runName):
+`--run_id`, `--sample_id`, `--service_tier`, `--site_id`, `--instrument`,
+`--flow_cell_id`, `--run_uuid`.
 
 ### Key params (defaults in `nextflow.config`)
 
@@ -47,8 +65,16 @@ results/
 ├── demux/barcoding_summary.txt             # Dorado per-read barcode assignments
 ├── fastq/<barcode>.fastq.gz                # per-barcode FASTQ (downstream input)
 ├── qc/readcounts.tsv                       # barcode, reads, PASS/LOW
-└── pipeline_info/                          # versions.yml, timeline/report/trace
+└── pipeline_info/
+    ├── run-manifest.json                   # provenance: per-stage tool/version/sha256/timestamps + deliverables
+    ├── versions.yml                        # collated tool versions
+    └── timeline.html / report.html / trace.txt
 ```
+
+The **run manifest** (`pipeline_info/run-manifest.json`) is the reproducibility record:
+the entrypoint's run-level header (operator, git commit, code hash, integrity/kill-flag
+state) plus a sha256-hashed block per stage (basecall, demux) and the per-barcode
+deliverables. It is schema-validated (`assets/run-manifest.schema.json`) before it lands.
 
 ## Structural smoke test (no GPU / no data)
 
@@ -61,9 +87,11 @@ nextflow run . -profile standard -stub-run \
   --pod5_dir /tmp/fake_pod5 --barcode_kit SQK-NBD114-24 --outdir /tmp/m1_stub
 ```
 
-Launch from the repo root via `nextflow run .` (uses `manifest.mainScript`) so
-`projectDir` resolves to the repo root and the `environment.yml` / `tools/` paths
-hold. Expect `completed=5` with the output tree above (FASTQ excludes `unclassified`).
+Launch from the repo root via `nextflow run .` (entry is `main.nf` at the repo root, so
+`projectDir` resolves to the repo root and the `environment.yml` / `tools/` / `python/`
+paths hold). Expect `completed=6` (basecall, demux, 2× bam_to_fastq, demux_qc,
+manifest_merge); FASTQ excludes `unclassified`. The stub also produces and validates
+`pipeline_info/run-manifest.json`.
 
 ## Confirming the GPU path
 

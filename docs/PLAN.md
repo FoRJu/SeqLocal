@@ -17,19 +17,18 @@ each stage as it is written. Only the external infrastructure is deferred (M6/M8
   autocycler, dnaapler, medaka, seqkit, minimap2, samtools, bcftools, rasusa,
   filtlong), Dorado 2.0.0 host-binary install (ONT tarball, not conda), Nextflow.
   Exact versions recorded.
-- **M1 — Basecall + demux. [DONE — needs retrofit]** Dorado 2.0.0 (HAC v6.0 default)
-  POD5 → FASTQ/BAM, demux by barcode. GPU path on the RTX 4090 verified. Clean
-  per-barcode read set.
-  - **M1 retrofit (do BEFORE or WITH M2):** the hardening seams were specified after
-    M1 was built, so M1 must be brought up to standard before the project accretes
-    more un-provenanced stages. Checklist:
-    1. Confirm the basecall/demux stage runs as `bfxsvc`, not root or a human account.
-    2. Emit a run-manifest block for the stage (see schema below): dorado version,
-       model name (`dna_r10.4.1_e8.2_400bps_hac@v6.0.0`), input POD5 sha256(s), demux
-       params, flow-cell/instrument ID, timestamps, status.
-    3. sha256 inputs and outputs; record in the manifest.
-    4. Add the integrity + kill-flag stub to `ont_pipeline.sh`.
-    Do not start M2 proper until M1 emits a manifest.
+- **M1 — Basecall + demux. [DONE]** Dorado 2.0.0 (HAC v6.0 default) POD5 → FASTQ/BAM,
+  demux by barcode. GPU path on the RTX 4090 verified. Clean per-barcode read set.
+  - **M1 retrofit [DONE — ADR-0007]:** the hardening seams were specified after M1 was
+    built, so M1 was brought up to standard before the project accreted more
+    un-provenanced stages. Checklist (all complete):
+    1. ✅ Entrypoint enforces non-root and (with `SEQLOCAL_REQUIRE_BFXSVC=1`) `bfxsvc`.
+    2. ✅ Each stage emits a manifest block: dorado version, model name
+       (`dna_r10.4.1_e8.2_400bps_hac@v6.0.0`), input POD5 sha256(s), demux params,
+       flow-cell/instrument ID (run-metadata flags), timestamps, status.
+    3. ✅ sha256 of inputs and outputs recorded per stage; finalized by `MANIFEST_MERGE`.
+    4. ✅ Integrity + kill-flag (+ MinKNOW yield) chokepoint in `ont_pipeline.sh`.
+    Provenance plumbing lives in `python/provenance/` and is reused by M2 onward.
 - **M2 — AB1 synthesizer (bespoke). [NEXT]** The one component with no off-the-shelf
   equivalent — build and unit-test in isolation against a known consensus before
   wiring it into any tier. See "AB1 algorithm" below. **Hardening seams M2 must carry:**
@@ -68,8 +67,8 @@ SeqLocal/
 │   └── security.md             # hardening reference + kill-switch runbook (grows M6/M8)
 ├── bin/
 │   └── ont_pipeline.sh         # thin entry + integrity/kill-flag chokepoint
-├── workflows/
-│   ├── main.nf                 # router on service tier
+├── main.nf                     # pipeline entry (repo root → projectDir = repo root)
+├── workflows/                  # tier subworkflows (M3+)
 │   ├── amplicon.nf
 │   ├── plasmid.nf
 │   └── plasmid_advanced.nf

@@ -2,8 +2,10 @@
 # Install Nextflow (pinned, stable) for the ONT pipeline orchestration layer.
 #
 # Pinned to 26.04.3 stable (NOT edge) — CRO production (ADR-0002).
-# Requires Java 17 (Temurin LTS recommended; 21 also supported). On Ubuntu 24.04:
-#     sudo apt-get install -y temurin-17-jdk   # via Adoptium apt repo
+# Requires Java (Temurin 21 LTS recommended; 17+ supported). Install via SDKMAN:
+#     curl -s "https://get.sdkman.io" | bash
+#     source ~/.sdkman/bin/sdkman-init.sh
+#     sdk install java 21.0.7-tem
 #
 # Usage:  bash bin/install_nextflow.sh
 set -euo pipefail
@@ -15,7 +17,8 @@ PREFIX="${NXF_PREFIX:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/tools}"
 mkdir -p "${PREFIX}"
 
 if ! command -v java >/dev/null 2>&1; then
-  echo "!! Java not found. Install Temurin JDK 17 (or 21) before continuing." >&2
+  echo "!! Java not found. Install Temurin 21 LTS via SDKMAN before continuing:" >&2
+  echo '   curl -s "https://get.sdkman.io" | bash && source ~/.sdkman/bin/sdkman-init.sh && sdk install java 21.0.7-tem' >&2
   exit 1
 fi
 

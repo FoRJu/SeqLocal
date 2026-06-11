@@ -1,14 +1,17 @@
 #!/usr/bin/env nextflow
 // main.nf — ONT pipeline entry. M1: basecall + demux → per-barcode BAM + FASTQ + QC.
+// Lives at the repo root so `projectDir` resolves to the repo root (and ${projectDir}
+// tooling paths — dorado_bin, models, conda env, provenance_cli — are correct).
 // Service-tier routing (amplicon/plasmid/advanced) is added in M3; this entry currently
 // runs only the BASECALL_DEMUX subworkflow.
 
 nextflow.enable.dsl = 2
 
-include { DORADO_BASECALL } from '../modules/dorado_basecall.nf'
-include { DORADO_DEMUX    } from '../modules/dorado_demux.nf'
-include { BAM_TO_FASTQ    } from '../modules/bam_to_fastq.nf'
-include { DEMUX_QC        } from '../modules/demux_qc.nf'
+include { DORADO_BASECALL } from './modules/dorado_basecall.nf'
+include { DORADO_DEMUX    } from './modules/dorado_demux.nf'
+include { BAM_TO_FASTQ    } from './modules/bam_to_fastq.nf'
+include { DEMUX_QC        } from './modules/demux_qc.nf'
+include { MANIFEST_MERGE  } from './modules/manifest_merge.nf'
 
 // ---- Param validation -------------------------------------------------------
 def required(name, value) {
@@ -60,8 +63,22 @@ workflow BASECALL_DEMUX {
     ch_versions
         .collectFile(name: 'versions.yml', storeDir: "${params.outdir}/pipeline_info", sort: true)
 
+    // Run manifest (ADR-0007): stage fragments hashed at each boundary + per-barcode
+    // deliverables -> one schema-validated run-manifest.json. run_id defaults to the
+    // Nextflow run name when the entrypoint did not supply one.
+    def run_id = params.run_id ?: workflow.runName
+    ch_stage_fragments = DORADO_BASECALL.out.manifest
+        .mix(DORADO_DEMUX.out.manifest)
+        .collect()
+    ch_deliverables = BAM_TO_FASTQ.out.fastq
+        .map { barcode, fq -> fq }
+        .collect()
+
+    MANIFEST_MERGE(run_id, ch_stage_fragments, ch_deliverables)
+
     emit:
     fastq      = BAM_TO_FASTQ.out.fastq
     readcounts = DEMUX_QC.out.readcounts
+    manifest   = MANIFEST_MERGE.out.manifest
     versions   = ch_versions
 }

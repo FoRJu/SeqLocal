@@ -7,12 +7,14 @@ rather than silently diverging.
 
 ## Current status
 
-- **M0 (environment) and M1 (basecall + demux): complete. M2 (AB1 synthesizer) is next.**
-- The **Production hardening & integrity** section below now applies to ALL milestones,
-  not just future ones. Because those requirements were added after M1 was built, run
-  the **M1 retrofit checklist** (PLAN.md → M1) before or alongside M2, so the basecall
-  stage is not left without provenance. Do not begin M2 proper until M1 emits a run
-  manifest and is confirmed to run as the non-root service account.
+- **M0 (environment), M1 (basecall + demux), and the M1 hardening retrofit: complete.
+  M2 (AB1 synthesizer) is next.**
+- The **Production hardening & integrity** section below applies to ALL milestones. The
+  M1 retrofit (ADR-0007) is done: M1 emits a schema-validated run manifest with per-stage
+  sha256 hashing, and `bin/ont_pipeline.sh` enforces the non-root/`bfxsvc`, kill-flag,
+  code-integrity, and MinKNOW-yield chokepoint. The provenance plumbing
+  (`python/provenance/`, `assets/run-manifest.schema.json`) is reused by M2 onward — every
+  new stage MUST emit its manifest block. Pipeline entry is `main.nf` at the repo root.
 
 ## What this project is
 

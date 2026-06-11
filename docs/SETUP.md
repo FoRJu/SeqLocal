@@ -14,7 +14,7 @@ recorded as ADRs in [`.claude/memory/decisions.md`](../.claude/memory/decisions.
 | OS | Ubuntu 24.04.x LTS Server (NOT 26.04 yet — see CLAUDE.md) |
 | GPU stack | NVIDIA driver + CUDA 12.8 (NVIDIA apt repo); RTX 4090 / Ada 8.9 |
 | Conda frontend | `mamba` (or `conda`) with strict channel priority |
-| Java | Temurin JDK **17** LTS (21 also supported) — for Nextflow |
+| Java | Temurin **21** LTS (17+ supported) — for Nextflow, via SDKMAN |
 | Storage | NVMe hot scratch for POD5 + basecalling + work dirs |
 
 Set strict channel priority once:
@@ -22,6 +22,19 @@ Set strict channel priority once:
 ```bash
 conda config --set channel_priority strict
 ```
+
+Install Java via SDKMAN (Temurin 21 LTS) — Nextflow runs on the JVM:
+
+```bash
+curl -s "https://get.sdkman.io" | bash
+source ~/.sdkman/bin/sdkman-init.sh
+sdk install java 21.0.7-tem
+java -version          # expect Temurin 21.0.7
+```
+
+> SDKMAN edits your shell rc to source `sdkman-init.sh`. In a fresh non-interactive
+> shell (or `bfxsvc`), `source ~/.sdkman/bin/sdkman-init.sh` first so `java`/`nextflow`
+> are on PATH.
 
 ## 2. Pinned versions
 
@@ -74,7 +87,7 @@ tools/dorado/bin/dorado download --model <exact-sup-v6-name> --models-directory 
 ## 5. Install Nextflow
 
 ```bash
-bash bin/install_nextflow.sh   # requires Java 17; pins NXF_VER=26.04.3
+bash bin/install_nextflow.sh   # requires Java (Temurin 21 via SDKMAN); pins NXF_VER=26.04.3
 ```
 
 ## 6. Verify

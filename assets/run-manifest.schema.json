@@ -1,0 +1,111 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://seqlocal/assets/run-manifest.schema.json",
+  "title": "SeqLocal run manifest",
+  "description": "One manifest per run/sample, assembled incrementally from per-stage fragments. See docs/PLAN.md and python/provenance/manifest.py (validate() mirrors this contract).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "manifest_version", "run_id", "sample_id", "service_tier", "site_id",
+    "instrument", "operator", "pipeline", "integrity", "created_utc",
+    "stages", "deliverables"
+  ],
+  "properties": {
+    "manifest_version": { "type": "string" },
+    "run_id": { "type": "string" },
+    "sample_id": { "type": "string", "description": "barcode / alias" },
+    "service_tier": {
+      "type": "string",
+      "description": "empty until the tier router (M3) assigns one",
+      "enum": ["", "amplicon", "plasmid", "plasmid_advanced"]
+    },
+    "site_id": { "type": "string" },
+    "instrument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["device", "flow_cell_id", "run_uuid"],
+      "properties": {
+        "device": { "type": "string", "description": "MinION | PromethION" },
+        "flow_cell_id": { "type": "string" },
+        "run_uuid": { "type": "string" }
+      }
+    },
+    "operator": { "type": "string", "description": "service account / id" },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["git_commit", "code_sha256", "container_digest"],
+      "properties": {
+        "git_commit": { "type": "string" },
+        "code_sha256": { "type": "string" },
+        "container_digest": {
+          "type": ["string", "null"],
+          "description": "null on the conda interim (ADR-0005/0006); set from M6"
+        }
+      }
+    },
+    "integrity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code_hash_verified", "kill_flag_present"],
+      "properties": {
+        "code_hash_verified": { "type": "boolean" },
+        "kill_flag_present": { "type": "boolean" }
+      }
+    },
+    "created_utc": { "type": "string" },
+    "stages": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/stage" }
+    },
+    "deliverables": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/deliverable" }
+    }
+  },
+  "$defs": {
+    "fileref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name", "tool", "tool_version", "params",
+        "inputs", "outputs", "started_utc", "finished_utc", "status"
+      ],
+      "properties": {
+        "name": { "type": "string" },
+        "tool": { "type": "string" },
+        "tool_version": { "type": "string" },
+        "model": { "type": ["string", "null"] },
+        "params": { "type": "object" },
+        "seed": {
+          "type": ["string", "integer", "null"],
+          "description": "recorded for any stochastic step (CLAUDE.md determinism)"
+        },
+        "inputs": { "type": "array", "items": { "$ref": "#/$defs/fileref" } },
+        "outputs": { "type": "array", "items": { "$ref": "#/$defs/fileref" } },
+        "started_utc": { "type": "string" },
+        "finished_utc": { "type": "string" },
+        "status": { "type": "string", "enum": ["ok", "failed"] }
+      }
+    },
+    "deliverable": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256", "format"],
+      "properties": {
+        "path": { "type": "string" },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "format": { "type": "string" }
+      }
+    }
+  }
+}

@@ -116,6 +116,49 @@ Status values: Accepted · Superseded · Open (pending benchmark).
   with the migration path (M6) in place. CLAUDE.md's Reproducibility bullet is annotated
   to reflect this rather than silently diverging.
 
+## ADR-0007 — Run-manifest architecture & M1 hardening retrofit
+
+- **Date:** 2026-06-11
+- **Status:** Accepted
+- **Context:** The "Production hardening & integrity → Enforced now" requirements were
+  added to CLAUDE.md/PLAN.md after M1 was built, and apply retroactively. PLAN.md gates
+  M2 on it: *"Do not start M2 proper until M1 emits a manifest."* Needed: a run manifest
+  per stage, sha256 at every stage boundary, non-root (`bfxsvc`) execution, and the
+  integrity + kill-flag chokepoint — built so M2 and later stages inherit the same
+  provenance plumbing. CLAUDE.md instructs recording the now/later split as an ADR.
+- **Decision:**
+  - **Division of labor.** `bin/ont_pipeline.sh` is the integrity chokepoint: it computes
+    the run-level header facts (non-root/`bfxsvc` check, repo code hash, kill-flag,
+    MinKNOW yield, operator, git commit) and passes them to Nextflow as params. Each
+    Nextflow **process emits a stage fragment** (`<name>.stage.json`) that sha256-hashes
+    its real inputs/outputs *in its own work dir* — hashing happens at the boundary, not
+    after. A new **`MANIFEST_MERGE`** process assembles header + ordered fragments +
+    deliverables into a schema-validated `pipeline_info/run-manifest.json`. The
+    basecall→demux DAG dependency enforces stage order; shell-glob ordering of fragments
+    is the tie-break.
+  - **Emitter is stdlib-only + Python 3.9-compatible** (`python/provenance/manifest.py`),
+    so it runs identically under the GPU label (no conda — system python3) and the
+    samtools label (ont-tools python), and the Mac `-stub-run` still validates wiring.
+    **No new conda dependency** (keeps ADR-0002 pins intact); schema validation is a
+    hand-rolled required-keys/enum check mirroring `assets/run-manifest.schema.json`.
+    JSON is written sorted + fixed-separators → byte-deterministic for identical inputs.
+  - **`main.nf` moved to the repo root** (was `workflows/main.nf`). `projectDir` resolves
+    to the *main script's* directory, so the old layout made every `${projectDir}/…`
+    tooling path (dorado_bin, models, conda env, provenance_cli) resolve into
+    `workflows/` — latent because no `${projectDir}` path was exercised at stub-runtime
+    until the manifest CLI. Root `main.nf` makes `projectDir` = repo root (nf-core idiom).
+    `workflows/` is retained for the M3+ tier subworkflows.
+  - **now/later split.** Built now (changes code/data shape): manifest emission, stage
+    hashing, non-root enforcement, kill-flag + integrity + MinKNOW stubs in the entrypoint.
+    Deferred (external infra, seam reserved): real code-hash baseline recording + image
+    signing → M6 (`container_digest` stays null meanwhile); central kill trigger, scoped
+    delivery creds, append-only manifest store, systemd GPU slices → M8.
+- **Consequences:** M1 now emits a reproducible, schema-valid manifest and refuses to run
+  as root / under a kill-flag / against a live flow cell. The entrypoint hash covers
+  git-tracked files only (committed state) — correct for the deploy model (commit →
+  record baseline → run), but uncommitted edits are not reflected until tracked. M2
+  reuses `python/provenance/` directly.
+
 ---
 
 ## Open — pending empirical benchmark (resolve in M7, record outcomes here)
