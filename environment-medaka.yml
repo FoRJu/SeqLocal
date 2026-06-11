@@ -1,0 +1,24 @@
+# Medaka polisher — ISOLATED env (ADR-0003 in .claude/memory/decisions.md).
+#
+# Why separate from environment.yml:
+#   - The bioconda medaka package bundles its own samtools/minimap2/bgzip, which
+#     can collide with the explicit samtools=1.23.1 / minimap2=2.31 pins in the
+#     main `ont-tools` env (the solver may pull a second copy).
+#   - Oxford Nanopore states the bioconda medaka packages are NOT supported by ONT
+#     (they recommend pip/Docker). Isolating it keeps the main env clean and lets
+#     us swap to a container later without disturbing ont-tools.
+#
+# Medaka 2.x is PyTorch-based. For GPU polishing, pin the CUDA-flavored torch build
+# explicitly (or run from a container) so it resolves deterministically — do that
+# when the GPU-polish path is wired up (M4/M7), not in this base file.
+#
+# This env exists primarily for the M7 Medaka-vs-Dorado-polish benchmark (Open in
+# decisions.md). Do NOT assume Medaka helps modern SUP basecalls — validate first.
+#
+# Create:  mamba env create -f environment-medaka.yml
+name: ont-medaka
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - medaka=2.2.2

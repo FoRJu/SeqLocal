@@ -1,0 +1,31 @@
+# Local tool binaries (Dorado, Nextflow) installed by bin/install_*.sh
+tools/
+
+# Local dev-sync target (bin/sync.sh) — host-specific, never committed
+.sync.env
+
+# Raw signal + basecalling inputs (huge; live on NVMe/bulk, never in git)
+*.pod5
+*.fast5
+*.bam
+*.bai
+
+# Pipeline run state + outputs
+work/
+results/
+.nextflow*
+*.nf.log
+
+# Conda
+conda-env/
+.conda/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# OS / editor cruft
+.DS_Store
+*.swp
