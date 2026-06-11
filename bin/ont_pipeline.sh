@@ -154,21 +154,27 @@ echo ">> Preflight OK (user=${CURRENT_USER}, dorado=${DORADO_VER}). Launching Ne
 # Launch via the project dir (uses manifest.mainScript = main.nf at the repo root) so
 # `projectDir` resolves to the repo root — keeps ${projectDir}/{tools,environment.yml,
 # python} paths correct. Run-level provenance is threaded into the manifest header.
-exec nextflow run "${REPO}" \
-  -profile "${PROFILE}" \
-  --pod5_dir "${POD5_DIR}" \
-  --barcode_kit "${BARCODE_KIT}" \
-  --outdir "${OUTDIR}" \
-  --operator "${CURRENT_USER}" \
-  --git_commit "${GIT_COMMIT}" \
-  --code_sha256 "${CODE_SHA256}" \
-  --integrity_verified "${INTEGRITY_VERIFIED}" \
-  --kill_flag_present false \
-  --run_id "${RUN_ID}" \
-  --sample_id "${SAMPLE_ID}" \
-  --service_tier "${SERVICE_TIER}" \
-  --site_id "${SITE_ID}" \
-  --instrument "${INSTRUMENT}" \
-  --flow_cell_id "${FLOW_CELL_ID}" \
-  --run_uuid "${RUN_UUID}" \
-  "${EXTRA[@]}"
+#
+# Build the arg list, appending optional metadata ONLY when non-empty: Nextflow turns a
+# `--param ""` into the boolean `true`, so empty flags must be omitted (the config
+# defaults to null, and the manifest header falls back cleanly).
+NF_ARGS=(
+  -profile "${PROFILE}"
+  --pod5_dir "${POD5_DIR}"
+  --barcode_kit "${BARCODE_KIT}"
+  --outdir "${OUTDIR}"
+  --operator "${CURRENT_USER}"
+  --code_sha256 "${CODE_SHA256}"
+  --integrity_verified "${INTEGRITY_VERIFIED}"
+  --kill_flag_present false
+)
+[[ -n "${GIT_COMMIT}" ]]   && NF_ARGS+=(--git_commit "${GIT_COMMIT}")
+[[ -n "${RUN_ID}" ]]       && NF_ARGS+=(--run_id "${RUN_ID}")
+[[ -n "${SAMPLE_ID}" ]]    && NF_ARGS+=(--sample_id "${SAMPLE_ID}")
+[[ -n "${SERVICE_TIER}" ]] && NF_ARGS+=(--service_tier "${SERVICE_TIER}")
+[[ -n "${SITE_ID}" ]]      && NF_ARGS+=(--site_id "${SITE_ID}")
+[[ -n "${INSTRUMENT}" ]]   && NF_ARGS+=(--instrument "${INSTRUMENT}")
+[[ -n "${FLOW_CELL_ID}" ]] && NF_ARGS+=(--flow_cell_id "${FLOW_CELL_ID}")
+[[ -n "${RUN_UUID}" ]]     && NF_ARGS+=(--run_uuid "${RUN_UUID}")
+
+exec nextflow run "${REPO}" "${NF_ARGS[@]}" "${EXTRA[@]}"

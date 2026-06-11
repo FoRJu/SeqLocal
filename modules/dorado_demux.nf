@@ -59,11 +59,12 @@ process DORADO_DEMUX {
     stub:
     """
     started=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    # Mirror dorado's nested layout: bams under demux/<run>/, summary at demux/ root.
+    # Mirror dorado's real nested layout + naming (<flowcell>_pass_<barcode>_<runid>_..bam),
+    # summary at demux/ root — so the barcode-extraction regex is exercised by the stub.
     mkdir -p demux/stubrun
-    touch demux/stubrun/${params.barcode_kit}_barcode01.bam
-    touch demux/stubrun/${params.barcode_kit}_barcode02.bam
-    touch demux/stubrun/unclassified.bam
+    touch demux/stubrun/STUB_pass_barcode01_run0_00000000_0.bam
+    touch demux/stubrun/STUB_pass_barcode02_run0_00000000_0.bam
+    touch demux/stubrun/STUB_pass_unclassified_run0_00000000_0.bam
     printf 'read_id\\tbarcode\\n' > demux/sequencing_summary.txt
 
     out_args=""

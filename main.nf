@@ -46,9 +46,16 @@ workflow BASECALL_DEMUX {
     ch_versions = ch_versions.mix(DORADO_DEMUX.out.versions)
 
     // Fan out per-barcode BAMs to (barcode_id, bam); drop unclassified from FASTQ export.
+    // Dorado 2.0.0 names demuxed BAMs like `<flowcell>_pass_barcode05_<runid>_..bam`
+    // (and `..._unclassified_..`), so extract the clean barcode/unclassified token by
+    // regex rather than using the whole filename.
     ch_per_barcode = DORADO_DEMUX.out.bams
         .flatten()
-        .map { bam -> tuple(bam.simpleName, bam) }
+        .map { bam ->
+            def mt = (bam.name =~ /barcode\d+|unclassified/)
+            def label = mt.find() ? mt.group() : bam.simpleName
+            tuple(label, bam)
+        }
         .filter { barcode, bam -> barcode != 'unclassified' }
 
     BAM_TO_FASTQ(ch_per_barcode)
