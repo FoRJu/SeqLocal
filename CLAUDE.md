@@ -41,6 +41,11 @@ raw ONT signal into customer deliverables across three service tiers:
   that routes a barcode → service-tier subworkflow via a sample sheet.
 - **Reproducibility:** every step containerized (Docker/Singularity), version-pinned
   per job. This is a CRO deliverable — no unpinned tool versions in production.
+  Two standing exceptions (see ADR-0005/0006): Dorado runs as a **host binary** (the
+  GPU path can't be reserved through a container on the local executor) and is pinned
+  via a `dorado --version` gate + `versions.yml` manifest instead of an image digest;
+  and non-Dorado steps run from the **pinned conda env on an interim basis** (default
+  `-profile conda`), with per-process container images to be filled in at M6.
 
 ## Decisions pending empirical benchmark (log outcomes in .claude/memory/decisions.md)
 

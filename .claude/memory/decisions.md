@@ -76,6 +76,46 @@ Status values: Accepted · Superseded · Open (pending benchmark).
   **no `defaults`** channel (current bioconda guidance). Getting this wrong is the
   usual cause of unsolvable/incorrect samtools/bcftools/htslib pins.
 
+## ADR-0005 — Dorado run pattern in Nextflow (M1)
+
+- **Date:** 2026-06-10
+- **Status:** Accepted
+- **Context:** M1 basecalls POD5 → demuxes by barcode on the Ubuntu RTX 4090 box.
+  Researched Dorado 2.0.0 behavior: the Nextflow `accelerator` directive does **not**
+  reserve a GPU on the local executor; the default model download is ephemeral
+  (deleted post-run); inline `--kit-name` during basecalling hits a nested-output bug
+  (dorado#1544); Dorado emits unaligned BAM to stdout by default.
+- **Decision:**
+  - **Basecall kit-free, then demux classifies.** `dorado basecaller hac@v6.0 <pod5>
+    --device cuda:0 --models-directory tools/dorado-models > calls.bam`, then
+    `dorado demux --kit-name <KIT> --emit-summary --output-dir demux calls.bam`.
+  - Run the **host Dorado binary** from the Nextflow process (no container — GPU
+    exception), label `gpu`, `maxForks 1`, `-x cuda:0` to serialize the single 4090.
+  - Pre-fetched models in `tools/dorado-models` (never the ephemeral default).
+  - **Version gate:** `bin/ont_pipeline.sh` asserts `dorado --version == 2.0.0`; each
+    process emits `versions.yml` (dorado + model) collated to `pipeline_info/`.
+  - Keep default trimming (strips ONT adapters/barcodes, not customer primers); expose
+    `--no_trim` for later per-tier needs.
+- **Consequences:** GPU step isn't pinned by an image digest — the version gate +
+  versions.yml manifest are the reproducibility substitute. Kit-name strings validated
+  against `dorado demux --help` at runtime (compiled-in enumerated list), not hardcoded.
+
+## ADR-0006 — Interim conda exec backend; containers scaffolded (M1)
+
+- **Date:** 2026-06-10
+- **Status:** Accepted (interim; revisit at M6)
+- **Context:** CLAUDE.md locks "every step containerized." M0 produced a version-pinned
+  conda env (`ont-tools`); M1's only non-Dorado step (samtools-based demux QC / BAM→FASTQ)
+  can run from it immediately, whereas authoring per-process container images now would
+  block M1 from running end-to-end on the box.
+- **Decision:** Default `-profile conda` (uses `ont-tools` via `environment.yml`) for
+  non-Dorado steps. Scaffold `docker` and `singularity` profiles in `nextflow.config`
+  with per-process `container` directives left as TODO-M6. Conda pins (+ `conda-lock`)
+  provide interim reproducibility.
+- **Consequences:** A documented, temporary divergence from the containerization lock,
+  with the migration path (M6) in place. CLAUDE.md's Reproducibility bullet is annotated
+  to reflect this rather than silently diverging.
+
 ---
 
 ## Open — pending empirical benchmark (resolve in M7, record outcomes here)
