@@ -5,6 +5,15 @@ pipeline. This file is the source of truth for decisions already made. When in
 doubt, follow this file; if something here is wrong or outdated, propose an edit
 rather than silently diverging.
 
+## Current status
+
+- **M0 (environment) and M1 (basecall + demux): complete. M2 (AB1 synthesizer) is next.**
+- The **Production hardening & integrity** section below now applies to ALL milestones,
+  not just future ones. Because those requirements were added after M1 was built, run
+  the **M1 retrofit checklist** (PLAN.md → M1) before or alongside M2, so the basecall
+  stage is not left without provenance. Do not begin M2 proper until M1 emits a run
+  manifest and is confirmed to run as the non-root service account.
+
 ## What this project is
 
 A production software pipeline for an oncology-CRO sequencing service that turns
@@ -32,13 +41,15 @@ raw ONT signal into customer deliverables across three service tiers:
   default to HAC v6.0 for throughput, reserve SUP for high-value plasmid jobs.
   Rationale and supersession of the original "1.x" decision: ADR-0001 in
   `.claude/memory/decisions.md`.
-- **GPU stack:** NVIDIA driver + CUDA 12.8 from NVIDIA's apt repo (Dorado targets
-  CUDA 11.8/12.8, Torch 2.9). RTX 4090 = Ada / compute 8.9, FP8 fast path.
+- **GPU stack:** NVIDIA driver + CUDA 12.8 from NVIDIA's apt repo (Dorado 2.0.0
+  minimum CUDA is 12.8 on x86; targets CUDA 11.8/12.8, Torch 2.9). RTX 4090 = Ada /
+  compute 8.9, FP8 fast path.
 - **Input format:** POD5 only. Basecall off local NVMe (heavy random access).
 - **Storage:** NVMe = hot scratch (POD5 + basecalling + assembly work dirs);
   separate bulk volume for delivered results + raw archive.
 - **Orchestration:** Nextflow (DSL2). `ont_pipeline.sh` is the thin entry layer
-  that routes a barcode → service-tier subworkflow via a sample sheet.
+  that routes a barcode → service-tier subworkflow via a sample sheet, AND is the
+  single chokepoint for the startup integrity + kill-switch check (see hardening).
 - **Reproducibility:** every step containerized (Docker/Singularity), version-pinned
   per job. This is a CRO deliverable — no unpinned tool versions in production.
   Two standing exceptions (see ADR-0005/0006): Dorado runs as a **host binary** (the
@@ -68,6 +79,9 @@ industry approach). Build spec:
    four synthetic trace channel intensities.
 3. Encode into the ABIF binary container (PBAS / PCON / DATA channels, etc.).
    Biopython READS abi but does NOT write it — this encoder is ours to build.
+4. **Determinism (hardening):** pileup ordering and any tie-breaks must be
+   deterministic; if a seed is used, record it in the run manifest. Same input must
+   produce a byte-identical AB1.
 
 Delivery modes:
 - Full-length consensus AB1 (>800 bp) + FASTQ + FASTA + classic format. Flag to
@@ -86,6 +100,51 @@ Delivery modes:
   with dnaapler so every delivery is canonically oriented.
 - **Over-polishing.** Gated by the Medaka-vs-Dorado-polish benchmark above.
 
+## Production hardening & integrity
+
+Integrity and reproducible data integrity are the core Bfx goal. Hardening is split
+by whether an item changes the SHAPE of the code/data (do it NOW, while there is
+little to refactor) or is external infrastructure (DEFER, but reserve its seam now so
+it is drop-in later, not a thread-through). Record the now/later rationale as a new
+ADR in `.claude/memory/decisions.md`.
+
+### Enforced now — every milestone from M1 onward (build into each stage as written)
+
+- **Run as a non-root service account (`bfxsvc`).** No login, no shell, no sudo. Code
+  and containers are owned by a separate deploy identity and are read+execute-only to
+  `bfxsvc` — the account that runs the pipeline must not be able to modify it. Never
+  develop or test as root.
+- **Emit a run manifest from every stage.** Each stage appends a provenance block
+  (schema in PLAN.md) before the next stage runs: tool name+version, model
+  name+version, input and output sha256, parameters, any RNG seed, instrument/
+  flow-cell ID, timestamps, status. Reproducibility is born with the stage.
+- **Hash at every stage boundary.** sha256 inputs and outputs; record in the manifest.
+- **Determinism.** Any stochastic step records its seed in the manifest. Establish the
+  habit now (M2 AB1 pileup ordering; later M4 Rasusa subsampling).
+- **Integrity + kill-switch seam in `ont_pipeline.sh`.** Before doing any work the
+  entrypoint must (a) verify the recorded code/env hash and (b) check a local
+  kill-flag file and refuse to run if present. Stubs are acceptable now; this one
+  chokepoint is where image signing and the central kill trigger plug in later.
+- **Never preempt instrument control.** The analysis pipeline must yield to MinKNOW.
+  Until the systemd resource slices land (integration milestone), gate jobs on
+  "no active flow-cell run" rather than running concurrently with live basecalling.
+
+### Deferred — seam reserved now, built at the noted milestone
+
+- **Container image signing (cosign/sigstore) + per-process image digests → M6.**
+  Interim: pinned conda env (ADR-0005/0006) + the `dorado --version` / `versions.yml`
+  gate. Keep pinning versions meanwhile.
+- **Central management plane → M8 (needs multiple sites):** heartbeat, dead-man's-
+  switch token, scoped+revocable delivery credentials, config-as-code push. The local
+  kill-flag + integrity gate above is the interface it flips.
+- **OS tamper-evidence (dm-verity / AIDE / read-only immutable mounts) → M8 /
+  deployment hardening, pre-production.**
+- **Kill-switch fail-safe semantics:** on trip → halt, quarantine in-flight data,
+  refuse to emit/transmit deliverables, revoke delivery creds, alert. NEVER auto-wipe
+  data (forensics + chain of custody); NEVER auto-abort a live flow cell (analysis-stop
+  and sequencing-stop are separate decisions). Keep the local stub aligned to these
+  semantics so M8 only has to wire the triggers.
+
 ## Working agreements
 
 - Use **plan mode** before implementing any subworkflow. A plan must name the files
@@ -95,6 +154,10 @@ Delivery modes:
   BEFORE implementation.
 - Never speculate about the contents of files you have not read.
 - Delegate codebase exploration and research to subagents to preserve main context.
+- **Robustness conventions (every stage):** fail loud on unexpected state (never
+  silently continue or paper over a partial result), validate inputs at each stage
+  boundary, make stages idempotent and resumable, and keep stochastic steps
+  deterministic via logged seeds.
 
 ## Model routing (custom OpenRouter/DeepSeek backend)
 
@@ -106,4 +169,5 @@ Delivery modes:
 ## Compaction policy
 
 When compacting, always preserve: the full list of modified files, all test/run
-commands, and every entry in or reference to decisions.md.
+commands, every entry in or reference to decisions.md, and the Production hardening
+"enforced now" list.

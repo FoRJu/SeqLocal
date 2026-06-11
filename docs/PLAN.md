@@ -2,30 +2,59 @@
 
 Companion to CLAUDE.md. CLAUDE.md holds the rules and locked decisions; this file
 holds the design rationale, data flows, and build order. Read this to understand
-*what* we're building and *in what order*. Greenfield project — nothing exists yet.
+*what* we're building and *in what order*. **M0 and M1 are built; M2 is next.** This
+is the living design/build tracker.
 
 ## Build order (milestones)
 
-- **M0 — Environment.** Pin and document the toolchain BEFORE any pipeline code.
-  Produce `environment.yml` (mamba/bioconda: autocycler, dnaapler, medaka, seqkit,
-  minimap2, samtools, bcftools, rasusa, filtlong), a documented Dorado binary install
-  (ONT tarball, not conda), and a Nextflow install. Record exact versions.
-- **M1 — Basecall + demux.** Dorado (HAC v6.0 default) POD5 → FASTQ/BAM, demux by
-  barcode. Verify GPU path on the RTX 4090. Output a clean per-barcode read set.
-- **M2 — AB1 synthesizer (bespoke).** The one component with no off-the-shelf
-  equivalent — build and unit-test it in isolation against a known consensus before
-  wiring it into any tier. See "AB1 algorithm" below.
+**Hardening note:** the seams in CLAUDE.md → "Production hardening & integrity →
+Enforced now" apply to EVERY milestone from M1 onward (non-root run, manifest
+emission, stage-boundary hashing, determinism/seed logging, the entrypoint
+integrity + kill-flag check). They are NOT a separate milestone — they are built into
+each stage as it is written. Only the external infrastructure is deferred (M6/M8).
+
+- **M0 — Environment. [DONE]** Pinned toolchain: `environment.yml` (mamba/bioconda:
+  autocycler, dnaapler, medaka, seqkit, minimap2, samtools, bcftools, rasusa,
+  filtlong), Dorado 2.0.0 host-binary install (ONT tarball, not conda), Nextflow.
+  Exact versions recorded.
+- **M1 — Basecall + demux. [DONE — needs retrofit]** Dorado 2.0.0 (HAC v6.0 default)
+  POD5 → FASTQ/BAM, demux by barcode. GPU path on the RTX 4090 verified. Clean
+  per-barcode read set.
+  - **M1 retrofit (do BEFORE or WITH M2):** the hardening seams were specified after
+    M1 was built, so M1 must be brought up to standard before the project accretes
+    more un-provenanced stages. Checklist:
+    1. Confirm the basecall/demux stage runs as `bfxsvc`, not root or a human account.
+    2. Emit a run-manifest block for the stage (see schema below): dorado version,
+       model name (`dna_r10.4.1_e8.2_400bps_hac@v6.0.0`), input POD5 sha256(s), demux
+       params, flow-cell/instrument ID, timestamps, status.
+    3. sha256 inputs and outputs; record in the manifest.
+    4. Add the integrity + kill-flag stub to `ont_pipeline.sh`.
+    Do not start M2 proper until M1 emits a manifest.
+- **M2 — AB1 synthesizer (bespoke). [NEXT]** The one component with no off-the-shelf
+  equivalent — build and unit-test in isolation against a known consensus before
+  wiring it into any tier. See "AB1 algorithm" below. **Hardening seams M2 must carry:**
+  runs as `bfxsvc`; emits a manifest block (ab1synth version, input consensus sha256,
+  output AB1 sha256, any tie-break seed, timestamps, status); pileup ordering is
+  deterministic so the same input yields a byte-identical AB1; inputs validated at the
+  module boundary; failure is loud, not a silent empty AB1.
 - **M3 — Amplicon tier.** Primer-anchored orientation → consensus → AB1 + FASTQ +
   FASTA + classic, plus the "single primer + 800 bp strict cutoff" mode.
 - **M4 — Plasmid tier.** Assembly (benchmark wf-clone-validation vs Autocycler) →
   dnaapler reorient → polish (benchmark Medaka vs Dorado polish) → circular consensus
-  + per-base QC.
+  + per-base QC. (Rasusa subsample seed MUST be pinned + logged — see Determinism.)
 - **M5 — Advanced plasmid tier.** M4 + annotation + primer-based insert localization
   + insert-vs-reference variant calls.
-- **M6 — Delivery packaging.** Per-tier output bundles, naming, customer-facing QC
-  report, failure policy.
+- **M6 — Delivery packaging + signing.** Per-tier output bundles, naming,
+  customer-facing QC report, failure policy. Deliverables checksum-verified against
+  the manifest at packaging. Per-process container images built + signed (cosign).
 - **M7 — Validation.** Run control plasmids/amplicons end-to-end; lock the two pending
   benchmarks (assembler, polisher) and record results in `.claude/memory/decisions.md`.
+- **M8 — Fleet hardening & central plane. [DEFERRED — needs multiple sites]** Central
+  management plane, heartbeat / dead-man's-switch token, scoped+revocable delivery
+  credentials, config-as-code push (Ansible/Salt), OS tamper-evidence rollout
+  (dm-verity / AIDE / read-only mounts), and the central kill-switch trigger. The
+  local kill-flag + integrity gate stubbed from M1 is the interface this milestone
+  flips. Build nothing here until the single-site app is validated (M7).
 
 ## Target directory structure
 
@@ -35,9 +64,10 @@ SeqLocal/
 ├── environment.yml
 ├── docs/
 │   ├── PLAN.md                 # this file
-│   └── abif-format-notes.md    # ABIF byte-layout reference (write during M2)
+│   ├── abif-format-notes.md    # ABIF byte-layout reference (write during M2)
+│   └── security.md             # hardening reference + kill-switch runbook (grows M6/M8)
 ├── bin/
-│   └── ont_pipeline.sh         # thin entry: barcode + sample sheet → subworkflow
+│   └── ont_pipeline.sh         # thin entry + integrity/kill-flag chokepoint
 ├── workflows/
 │   ├── main.nf                 # router on service tier
 │   ├── amplicon.nf
@@ -45,16 +75,22 @@ SeqLocal/
 │   └── plasmid_advanced.nf
 ├── modules/                    # Nextflow DSL2 process modules
 ├── python/
-│   └── ab1synth/               # the AB1 synthesizer package (pip-installable)
+│   ├── ab1synth/               # the AB1 synthesizer package (pip-installable)
+│   └── provenance/             # run-manifest emitter (used by every stage)
 ├── conf/                       # nextflow.config, container profiles
-├── assets/                     # sample-sheet schema, test primers/references
+├── assets/
+│   ├── samplesheet.schema.json
+│   └── run-manifest.schema.json
 ├── tests/
 └── .claude/
     ├── agents/                 # subagent defs (research, implementer, validator, docs)
     └── memory/
-        ├── decisions.md        # ADR log — benchmark outcomes land here
+        ├── decisions.md        # ADR log — benchmark outcomes + hardening rationale
         └── scratchpad.md
 ```
+
+Note: the kill-flag and recorded code/env hash live OUTSIDE the repo at a runtime path
+(e.g. `/var/lib/seqlocal/`), owned by the deploy identity, not writable by `bfxsvc`.
 
 ## Per-tier data flow
 
@@ -84,11 +120,81 @@ ONT has no fluorescence; synthesize the trace from read composition:
 
 Constraints: Biopython reads ABIF but does NOT write it — this encoder is ours.
 Build a byte-layout reference in `docs/abif-format-notes.md` as you go. Unit-test by
-round-tripping (write → read back with Biopython/seqret → compare bases).
+round-tripping (write → read back with Biopython/seqret → compare bases) AND by the
+determinism check (same input → byte-identical output).
 
-## Notes carried over from planning (so they don't get lost in the move)
+## Run-manifest schema (the concrete center of the reproducibility goal)
 
-- "Dorado 6.0" = the v6.0 *model* generation; the Dorado *executable* is the 1.x line.
+One JSON manifest per run/sample, written INCREMENTALLY — each stage appends its block
+before the next stage runs (append, never rewrite history). Lives with the run's
+outputs; shipped to the central append-only store at M8. Emitter lives in
+`python/provenance/`; JSON Schema in `assets/run-manifest.schema.json`. Shape:
+
+```json
+{
+  "manifest_version": "1",
+  "run_id": "",
+  "sample_id": "<barcode/alias>",
+  "service_tier": "amplicon | plasmid | plasmid_advanced",
+  "site_id": "",
+  "instrument": { "device": "MinION|PromethION", "flow_cell_id": "...", "run_uuid": "..." },
+  "operator": "<account/id>",
+  "pipeline": {
+    "git_commit": "...",
+    "code_sha256": "...",
+    "container_digest": null
+  },
+  "integrity": { "code_hash_verified": true, "kill_flag_present": false },
+  "created_utc": "",
+  "stages": [
+    {
+      "name": "basecall",
+      "tool": "dorado",
+      "tool_version": "2.0.0",
+      "model": "dna_r10.4.1_e8.2_400bps_hac@v6.0.0",
+      "params": {},
+      "seed": null,
+      "inputs":  [ { "path": "...", "sha256": "..." } ],
+      "outputs": [ { "path": "...", "sha256": "..." } ],
+      "started_utc": "...",
+      "finished_utc": "...",
+      "status": "ok | failed"
+    }
+  ],
+  "deliverables": [
+    { "path": "...", "sha256": "...", "format": "ab1 | fastq | fasta | genbank | ..." }
+  ]
+}
+```
+
+Rules: every stage MUST append its block before the next runs; a stage with
+`status: failed` halts the run; `container_digest` is null while on the conda interim
+(ADR-0005/0006) and populated from M6; deliverables are checksum-verified against this
+manifest at packaging (M6).
+
+## Kill-switch & MinKNOW co-location design
+
+**Kill-switch (fail-safe).** `ont_pipeline.sh` checks, before any work: the recorded
+code/env hash, and a local kill-flag file (e.g. `/var/lib/seqlocal/KILL`, configurable).
+On trip → halt, quarantine in-flight data, refuse to emit/transmit deliverables, revoke
+delivery creds (once the central plane exists), alert. NEVER wipe data; NEVER auto-abort
+a live flow cell. Central revocation + dead-man's-switch token arrive at M8; the local
+flag is their interface. The switch is only as good as its runbook — define the alert
+path and owner in `docs/security.md`.
+
+**MinKNOW co-location.** The analysis pipeline must never preempt instrument control
+(live basecalling already struggles to keep up with the flow cell on a single 4090).
+Until systemd resource slices land (integration), gate jobs on "no active flow-cell run"
+instead of running concurrently. Final state: MinKNOW services in a high-priority
+systemd slice; the pipeline in a constrained slice (CPU weight, MemoryMax, GPU
+arbitration so it yields while a flow cell is live).
+
+## Notes carried over from planning (so they don't get lost)
+
+- Dorado executable pinned to **2.0.0** — the 2.x line is the first to ship the v6.0
+  DNA models; 1.x ended at 1.4.0 without them. "v6.0" = the model generation. See
+  CLAUDE.md and ADR-0001. (Supersedes the earlier "executable is 1.x" note.)
 - Ubuntu 24.04 LTS now; 26.04 is blocked on NVIDIA CUDA repo support — revisit Q4 2026.
 - HAC v6.0 is the throughput default; SUP only for high-value plasmid jobs.
 - Two benchmarks are deliberately unresolved until M7: assembler and polisher choice.
+- Hardening is split now/later — see CLAUDE.md → "Production hardening & integrity."
