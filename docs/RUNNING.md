@@ -61,9 +61,9 @@ Optional run-metadata flags flow into the run manifest (all default to empty / r
 ```
 results/
 ├── basecall/calls.bam                      # unaligned BAM (canonical)
-├── demux/<KIT>_barcodeNN.bam               # per-barcode BAM + unclassified.bam
-├── demux/barcoding_summary.txt             # Dorado per-read barcode assignments
-├── fastq/<barcode>.fastq.gz                # per-barcode FASTQ (downstream input)
+├── demux/<run_id>/.../<KIT>_barcodeNN.bam  # per-barcode BAM + unclassified.bam (dorado nests by run)
+├── demux/sequencing_summary.txt            # Dorado per-read barcode assignments (--emit-summary)
+├── fastq/<barcode>.fastq.gz                # per-barcode FASTQ (downstream input; flat)
 ├── qc/readcounts.tsv                       # barcode, reads, PASS/LOW
 └── pipeline_info/
     ├── run-manifest.json                   # provenance: per-stage tool/version/sha256/timestamps + deliverables

@@ -1,22 +1,25 @@
-// DORADO_DEMUX — basecalled BAM -> per-barcode BAMs + barcoding summary.
+// DORADO_DEMUX — basecalled BAM -> per-barcode BAMs + summary.
 // `--kit-name` makes demux classify (recommended 2.x path; ADR-0005). Host binary.
-// Emits a run-manifest stage fragment hashing calls.bam + the per-barcode BAMs (ADR-0007).
+// Dorado 2.0.0 writes a NESTED output tree under --output-dir (keyed by run id), and
+// `--emit-summary` writes `sequencing_summary.txt` to the root of that dir. So the BAMs
+// are matched recursively (demux/**/*.bam) and the summary is demux/sequencing_summary.txt.
+// Emits a run-manifest stage fragment hashing calls.bam + all demuxed BAMs + summary (ADR-0007).
 
 process DORADO_DEMUX {
     tag   "demux:${params.barcode_kit}"
     label 'gpu'   // host Dorado binary (CPU work here, but same no-container rule)
 
-    // Output files are under demux/; publish to outdir so they land at outdir/demux/.
-    publishDir "${params.outdir}", mode: 'copy', pattern: 'demux/*'
+    // Publish the whole demux tree (nested bams + summary) under outdir/demux/.
+    publishDir "${params.outdir}", mode: 'copy', pattern: 'demux/**'
 
     input:
     path bam
 
     output:
-    path 'demux/*.bam'                  , emit: bams
-    path 'demux/barcoding_summary.txt'  , emit: summary
-    path 'demux.stage.json'             , emit: manifest
-    path 'versions.yml'                 , emit: versions
+    path 'demux/**/*.bam'                 , emit: bams
+    path 'demux/sequencing_summary.txt'   , emit: summary
+    path 'demux.stage.json'               , emit: manifest
+    path 'versions.yml'                   , emit: versions
 
     script:
     """
@@ -31,10 +34,12 @@ process DORADO_DEMUX {
     finished=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
     dver=\$("${params.dorado_bin}" --version 2>&1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1)
 
-    # Hash every demuxed BAM (sorted, deterministic) + the summary as stage outputs.
-    out_args="--output demux/barcoding_summary.txt"
-    for f in \$(ls demux/*.bam 2>/dev/null | sort); do
-        out_args="\$out_args --output \$f"
+    # Hash whatever dorado actually produced (sorted, deterministic): the summary at the
+    # output-dir root + every BAM anywhere in the nested tree. Glob-based so a layout
+    # change can't silently reference a missing path.
+    out_args=""
+    for f in demux/sequencing_summary.txt \$(find demux -name '*.bam' | sort); do
+        [ -e "\$f" ] && out_args="\$out_args --output \$f"
     done
 
     python3 "${params.provenance_cli}" stage \\
@@ -54,15 +59,16 @@ process DORADO_DEMUX {
     stub:
     """
     started=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
-    mkdir -p demux
-    touch demux/${params.barcode_kit}_barcode01.bam
-    touch demux/${params.barcode_kit}_barcode02.bam
-    touch demux/unclassified.bam
-    printf 'read_id\\tbarcode\\n' > demux/barcoding_summary.txt
+    # Mirror dorado's nested layout: bams under demux/<run>/, summary at demux/ root.
+    mkdir -p demux/stubrun
+    touch demux/stubrun/${params.barcode_kit}_barcode01.bam
+    touch demux/stubrun/${params.barcode_kit}_barcode02.bam
+    touch demux/stubrun/unclassified.bam
+    printf 'read_id\\tbarcode\\n' > demux/sequencing_summary.txt
 
-    out_args="--output demux/barcoding_summary.txt"
-    for f in \$(ls demux/*.bam 2>/dev/null | sort); do
-        out_args="\$out_args --output \$f"
+    out_args=""
+    for f in demux/sequencing_summary.txt \$(find demux -name '*.bam' | sort); do
+        [ -e "\$f" ] && out_args="\$out_args --output \$f"
     done
     python3 "${params.provenance_cli}" stage \\
         --name demux --tool dorado --tool-version stub \\

@@ -9,8 +9,8 @@ process DEMUX_QC {
     publishDir "${params.outdir}/qc", mode: 'copy', pattern: 'readcounts.tsv'
 
     input:
-    path bams      // all per-barcode BAMs (collected)
-    path summary   // barcoding_summary.txt (published alongside; kept for provenance)
+    path bams      // all per-barcode BAMs (collected, recursive from the nested demux tree)
+    path summary   // sequencing_summary.txt (published alongside; kept for provenance)
 
     output:
     path 'readcounts.tsv', emit: readcounts
