@@ -39,25 +39,7 @@ workflow {
     // does the authoritative order validation inside the tier.
     if (params.samplesheet) {
         def sheet = file(params.samplesheet, checkIfExists: true)
-        def slurper = new groovy.json.JsonSlurper()
-        def orders = [:]
-        file(params.orders_dir, checkIfExists: true).listFiles()
-            .findAll { it.name.endsWith('.json') }
-            .each { f -> def o = slurper.parse(f); orders[o.order_id as String] = o }
-
-        // barcode -> [assay, genome_size_bp]
-        def route = [:]
-        sheet.readLines().drop(1).findAll { it?.trim() }.each { line ->
-            def cols = line.split(',').collect { it.trim() }
-            def (bc, sid, oid) = [cols[0], cols[1], cols[2]]
-            def o = orders[oid]
-            if (o) {
-                def sample = o.samples.find { it.sample_id == sid }
-                def kb = sample?.size_kb
-                route[bc] = [assay: o.assay as String,
-                             size_bp: (kb ? (kb.toDouble() * 1000) as long : params.default_genome_size as long)]
-            }
-        }
+        def route = buildRoute(sheet, file(params.orders_dir, checkIfExists: true))
 
         ch_amplicon = BASECALL_DEMUX.out.fastq
             .filter { bc, fq -> route[bc]?.assay in ['FAIS', 'WAIS'] }
@@ -73,6 +55,67 @@ workflow {
         )
         PLASMID(ch_plasmid)
     }
+}
+
+// Parse the real VirtuizeBio intake (sample-sheet TSV + multi-section order CSVs) into
+// barcode -> [assay, size_bp]. Routing-only; python/amplicon is authoritative inside tiers.
+// size_bp is 0 when the order doesn't declare a size (estimated from reads in assembly).
+def assayFromService(String st) {
+    def k = st.toLowerCase()
+    if (k.contains('whole plasmid')) return 'PLASMID'
+    if (k.contains('wais')) return 'WAIS'
+    if (k.contains('fais')) return 'FAIS'
+    return null
+}
+
+def buildRoute(sheet, ordersDir) {
+    // order_id -> [assay, sizes: dna_name -> size_bp]
+    def orders = [:]
+    ordersDir.listFiles()
+        .findAll { it.name.startsWith('Order_') && it.name.endsWith('.csv') }
+        .each { f ->
+            def lines = f.readLines()
+            def orderId = null; def assay = null; def hdrIdx = -1
+            lines.eachWithIndex { ln, i ->
+                def c = ln.split(',', -1)
+                def key = c[0].trim()
+                if (key == 'Order No' && c.size() > 1) orderId = c[1].trim()
+                else if (key == 'Service Type' && c.size() > 1) assay = assayFromService(c[1].trim())
+                else if (key.startsWith('Samples') && key.contains('(') && hdrIdx < 0) hdrIdx = i + 1
+            }
+            def sizes = [:]
+            if (hdrIdx >= 0 && hdrIdx < lines.size()) {
+                def hdr = lines[hdrIdx].split(',', -1).collect { it.trim() }
+                def dnaCol = hdr.indexOf('DNA Name')
+                def sizeCol = hdr.findIndexOf { it.contains('Size (Kb)') }
+                ((hdrIdx + 1)..<lines.size()).each { r ->
+                    def c = lines[r].split(',', -1)
+                    if (dnaCol >= 0 && dnaCol < c.size() && c[dnaCol].trim()) {
+                        def sz = (sizeCol >= 0 && sizeCol < c.size()) ? c[sizeCol].trim() : '-'
+                        sizes[c[dnaCol].trim()] = (sz && sz != '-') ? ((sz.toDouble() * 1000) as long) : 0L
+                    }
+                }
+            }
+            if (orderId) orders[orderId] = [assay: assay, sizes: sizes]
+        }
+
+    def lines = sheet.readLines()
+    def hdrIdx = lines.findIndexOf { it.split('\t', -1)[0].trim() == 'Well' }
+    def hdr = lines[hdrIdx].split('\t', -1).collect { it.trim() }
+    def bcCol = hdr.indexOf('Barcode'); def snCol = hdr.indexOf('Sample Name'); def ordCol = hdr.indexOf('Order')
+    def route = [:]
+    ((hdrIdx + 1)..<lines.size()).each { i ->
+        def c = lines[i].split('\t', -1)
+        if (c.size() > ordCol) {
+            def bc = c[bcCol].trim(); def sn = c[snCol].trim(); def ord = c[ordCol].trim()
+            def parts = ord.split('#').findAll { it }
+            if (sn && ord && parts.size() >= 2) {
+                def o = orders[parts[1]]
+                if (o) route[bc] = [assay: o.assay, size_bp: (o.sizes[sn] ?: 0L)]
+            }
+        }
+    }
+    return route
 }
 
 // ---- Subworkflow ------------------------------------------------------------

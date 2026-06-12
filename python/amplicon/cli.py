@@ -31,7 +31,7 @@ def build_parser():
     p.add_argument("--consensus", required=True, help="assembled consensus FASTA")
     p.add_argument("--counts", required=True, help="pileup counts TSV (pos,A,C,G,T)")
     p.add_argument("--samplesheet", required=True)
-    p.add_argument("--order", action="append", required=True, help="order record JSON (repeatable)")
+    p.add_argument("--order", action="append", required=True, help="order detail CSV (repeatable)")
     p.add_argument("--primers", required=True, help="repo primer registry CSV")
     p.add_argument("--out", required=True, help="output basename")
     p.add_argument("--max-mismatch-frac", type=float, default=0.10)

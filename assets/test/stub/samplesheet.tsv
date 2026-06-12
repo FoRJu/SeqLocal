@@ -1,0 +1,10 @@
+Run ID	Operator	Machine	Library ID
+stubrun	FF
+
+Plate ID	Operator	Plate Barcode	Barcode Type
+stubrun	FF		RBK96
+
+Well	Barcode	Sample Name	Order	Sample Type	Sample Size	Service Type	Is Repeat	Analysis Type	Reference Name
+A01	barcode01	INS1	Cust#8001#						
+A02	barcode02	FOC1	Cust#8002#						
+A03	barcode03	PLZ1	Cust#8003#						

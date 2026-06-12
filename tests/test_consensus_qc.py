@@ -57,23 +57,17 @@ class TestPerBaseQC(unittest.TestCase):
 
 
 class TestPlasmidAssay(unittest.TestCase):
-    def setUp(self):
-        self.d = tempfile.mkdtemp()
-        with open(os.path.join(self.d, "ss.csv"), "w") as fh:
-            fh.write("barcode,sample_id,order_id\nbarcode01,PLZ1,9000001\n")
-        with open(os.path.join(self.d, "plasmid.json"), "w") as fh:
-            json.dump({"order_id": "9000001", "assay": "PLASMID",
-                       "samples": [{"sample_id": "PLZ1", "size_kb": 3.4}]}, fh)
-        self.ss = os.path.join(self.d, "ss.csv")
-        self.order = os.path.join(self.d, "plasmid.json")
+    """Real 'Whole Plasmid Sequencing' order CSVs route to the PLASMID tier, no primers."""
+    SHEET = os.path.join(REPO, "assets/test/aa051826a.samplesheet.tsv")
+    ORDERS = [os.path.join(REPO, "assets/test/orders/Order_7340017.csv"),
+              os.path.join(REPO, "assets/test/orders/Order_7340018.csv")]
 
     def test_plasmid_join_needs_no_primers(self):
-        jobs = orders.join(orders.load_samplesheet(self.ss),
-                           orders.load_orders([self.order]))
-        self.assertEqual(len(jobs), 1)
-        self.assertEqual(jobs[0].assay, "PLASMID")
-        self.assertEqual(jobs[0].size_kb, 3.4)
-        self.assertIsNone(jobs[0].single_primer)
+        jobs = orders.join(orders.load_samplesheet(self.SHEET), orders.load_orders(self.ORDERS))
+        plz = next(j for j in jobs if j.barcode == "barcode41")
+        self.assertEqual(plz.assay, "PLASMID")
+        self.assertEqual((plz.sample_id, plz.dna_name), ("DO001", "A03_1"))
+        self.assertIsNone(plz.single_primer)
 
 
 if __name__ == "__main__":

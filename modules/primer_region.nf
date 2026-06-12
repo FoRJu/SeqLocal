@@ -25,7 +25,7 @@ process PRIMER_REGION {
     script:
     """
     order_args=""
-    for f in ${orders_dir}/*.json; do
+    for f in ${orders_dir}/*.csv; do
         [ -e "\$f" ] && order_args="\$order_args --order \$f"
     done
 
@@ -40,7 +40,7 @@ process PRIMER_REGION {
     stub:
     """
     order_args=""
-    for f in ${orders_dir}/*.json; do
+    for f in ${orders_dir}/*.csv; do
         [ -e "\$f" ] && order_args="\$order_args --order \$f"
     done
     PYTHONPATH="${params.python_dir}" python3 -m amplicon \\

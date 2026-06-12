@@ -59,6 +59,28 @@ def counts_tsv(path, seq):
     return write(path, "\n".join(lines) + "\n")
 
 
+def make_samplesheet_tsv(path, rows):
+    """Build a real-shaped sample sheet TSV. rows = [(well, barcode, sample_name, order)]."""
+    out = ["Run ID\tOperator\tMachine\tLibrary ID", "testrun\tFF", "",
+           "Plate ID\tOperator\tPlate Barcode\tBarcode Type", "testrun\tFF\t\tRBK96", "",
+           "Well\tBarcode\tSample Name\tOrder\tSample Type\tSample Size\t"
+           "Service Type\tIs Repeat\tAnalysis Type\tReference Name"]
+    for well, bc, sn, order in rows:
+        out.append("\t".join([well, bc, sn, order, "", "", "", "", "", ""]))
+    return write(path, "\n".join(out) + "\n")
+
+
+def make_order_csv(path, order_id, service_type, columns, samples):
+    """Build a real-shaped multi-section order CSV. samples = [dict keyed by column name]."""
+    out = ["Service Order", "Order No,%s" % order_id, "",
+           "Order Information", "Service Type,%s" % service_type,
+           "Total Samples,%d" % len(samples), "",
+           "Samples (%d)" % len(samples), ",".join(["#"] + columns)]
+    for i, s in enumerate(samples, 1):
+        out.append(",".join([str(i)] + [s.get(c, "-") for c in columns]))
+    return write(path, "\n".join(out) + "\n")
+
+
 class TestMatch(unittest.TestCase):
     def test_forward_exact(self):
         h = match.find_primer(CONS, FP)
@@ -170,41 +192,60 @@ class TestRegistry(unittest.TestCase):
 
 
 class TestOrders(unittest.TestCase):
-    def setUp(self):
-        self.d = tempfile.mkdtemp()
-        self.ss = write(os.path.join(self.d, "ss.csv"),
-                        "barcode,sample_id,order_id\nbarcode01,BH_1,7340110\nbarcode02,SAC001,7340118\n")
-        write(os.path.join(self.d, "fais.json"), json.dumps({
-            "order_id": "7340110", "assay": "FAIS",
-            "samples": [{"sample_id": "BH_1", "single_primer": "Lucy-F"}]}))
-        write(os.path.join(self.d, "wais.json"), json.dumps({
-            "order_id": "7340118", "assay": "WAIS",
-            "samples": [{"sample_id": "SAC001", "primer_f": "NA-3", "primer_r": "HA-Rev"}]}))
-        self.orders = orders.load_orders([os.path.join(self.d, "fais.json"),
-                                          os.path.join(self.d, "wais.json")])
+    # Real fixtures shipped in the repo.
+    SHEET = os.path.join(REPO, "assets/test/aa051826a.samplesheet.tsv")
+    O17 = os.path.join(REPO, "assets/test/orders/Order_7340017.csv")
+    O18 = os.path.join(REPO, "assets/test/orders/Order_7340018.csv")
 
-    def test_join_fais_and_wais(self):
-        jobs = orders.join(orders.load_samplesheet(self.ss), self.orders)
-        by_bc = {j.barcode: j for j in jobs}
-        self.assertEqual(by_bc["barcode01"].assay, "FAIS")
-        self.assertEqual(by_bc["barcode01"].single_primer, "Lucy-F")
-        self.assertEqual((by_bc["barcode02"].primer_f, by_bc["barcode02"].primer_r), ("NA-3", "HA-Rev"))
+    def test_real_samplesheet_and_plasmid_orders(self):
+        rows = orders.load_samplesheet(self.SHEET)
+        self.assertEqual(len(rows), 9)                       # 9 populated barcodes
+        o = orders.load_orders([self.O17, self.O18])
+        self.assertEqual(o["7340017"]["assay"], "PLASMID")
+        jobs = orders.join(rows, o)
+        by = {j.barcode: j for j in jobs}
+        # join is Sample Name (sheet) == DNA Name (order)
+        self.assertEqual((by["barcode41"].assay, by["barcode41"].dna_name, by["barcode41"].sample_id),
+                         ("PLASMID", "A03_1", "DO001"))
+        self.assertEqual(by["barcode33"].order_id, "7340018")
+        self.assertIsNone(by["barcode41"].size_kb)            # Plasmid Size is '-'
+
+    def test_synthetic_wais_order_primer_columns(self):
+        d = tempfile.mkdtemp()
+        order = make_order_csv(
+            os.path.join(d, "Order_999.csv"), "999", "WAIS",
+            ["Sample ID", "DNA Name", "F Primer", "R Primer", "Insert Size (Kb)"],
+            [{"Sample ID": "S1", "DNA Name": "INS1", "F Primer": "NA-3",
+              "R Primer": "HA-Rev", "Insert Size (Kb)": "1.2"}])
+        ss = make_samplesheet_tsv(os.path.join(d, "ss.tsv"),
+                                  [("A01", "barcode01", "INS1", "Cust#999#")])
+        jobs = orders.join(orders.load_samplesheet(ss), orders.load_orders([order]))
+        self.assertEqual(jobs[0].assay, "WAIS")
+        self.assertEqual((jobs[0].primer_f, jobs[0].primer_r, jobs[0].size_kb),
+                         ("NA-3", "HA-Rev", 1.2))
+
+    def test_malformed_order_is_loud(self):
+        d = tempfile.mkdtemp()
+        ss = make_samplesheet_tsv(os.path.join(d, "ss.tsv"),
+                                  [("A01", "barcode01", "X", "noHashesHere")])
+        with self.assertRaises(ValueError):
+            orders.load_samplesheet(ss)
 
     def test_unknown_order_is_loud(self):
-        ss = write(os.path.join(self.d, "bad.csv"),
-                   "barcode,sample_id,order_id\nbarcode01,BH_1,9999999\n")
+        rows = orders.load_samplesheet(self.SHEET)           # references 7340018 too
         with self.assertRaises(ValueError):
-            orders.join(orders.load_samplesheet(ss), self.orders)
+            orders.join(rows, orders.load_orders([self.O17]))  # only 7340017 loaded
 
-    def test_wais_without_primers_rejected(self):
-        write(os.path.join(self.d, "noprimer.json"), json.dumps({
-            "order_id": "7340073", "assay": "WAIS",
-            "samples": [{"sample_id": "ZHC001"}]}))
-        ss = write(os.path.join(self.d, "ip.csv"),
-                   "barcode,sample_id,order_id\nbarcode03,ZHC001,7340073\n")
-        o = orders.load_orders([os.path.join(self.d, "noprimer.json")])
+    def test_unmatched_sample_name_is_loud(self):
+        d = tempfile.mkdtemp()
+        order = make_order_csv(
+            os.path.join(d, "Order_999.csv"), "999", "Whole Plasmid Sequencing",
+            ["Sample ID", "DNA Name", "Plasmid Size (Kb)"],
+            [{"Sample ID": "S1", "DNA Name": "REALNAME", "Plasmid Size (Kb)": "-"}])
+        ss = make_samplesheet_tsv(os.path.join(d, "ss.tsv"),
+                                  [("A01", "barcode01", "WRONGNAME", "Cust#999#")])
         with self.assertRaises(ValueError):
-            orders.join(orders.load_samplesheet(ss), o)
+            orders.join(orders.load_samplesheet(ss), orders.load_orders([order]))
 
 
 class TestCliEndToEnd(unittest.TestCase):
@@ -214,11 +255,12 @@ class TestCliEndToEnd(unittest.TestCase):
         self.counts = counts_tsv(os.path.join(self.d, "p.tsv"), CONS)
         self.primers = write(os.path.join(self.d, "primers.csv"),
                              "name,sequence,notes\nNA-3,%s,f\nHA-Rev,%s,r\n" % (FP, RP))
-        self.ss = write(os.path.join(self.d, "ss.csv"),
-                        "barcode,sample_id,order_id\nbarcode01,SAC001,7340118\n")
-        self.order = write(os.path.join(self.d, "o.json"), json.dumps({
-            "order_id": "7340118", "assay": "WAIS",
-            "samples": [{"sample_id": "SAC001", "primer_f": "NA-3", "primer_r": "HA-Rev"}]}))
+        self.ss = make_samplesheet_tsv(os.path.join(self.d, "ss.tsv"),
+                                       [("A01", "barcode01", "INS1", "Cust#7340118#")])
+        self.order = make_order_csv(
+            os.path.join(self.d, "Order_7340118.csv"), "7340118", "WAIS",
+            ["Sample ID", "DNA Name", "F Primer", "R Primer"],
+            [{"Sample ID": "SAC001", "DNA Name": "INS1", "F Primer": "NA-3", "R Primer": "HA-Rev"}])
 
     def _run(self, out):
         from amplicon.cli import main

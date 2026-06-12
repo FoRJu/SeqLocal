@@ -1,0 +1,10 @@
+Service Order
+Order No,8003
+
+Order Information
+Service Type,Whole Plasmid Sequencing
+Total Samples,1
+
+Samples (1)
+#,Sample ID,DNA Name,Copy number,Conc range,Conc (ng/ul),Plasmid Size (Kb),Vector origin,Notes
+1,PLZ1,PLZ1,low copy,20-400 ng/ul,-,-,-,-

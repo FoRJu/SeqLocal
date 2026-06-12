@@ -1,0 +1,43 @@
+Service Order
+Order No,7340017
+Date Submitted,2026-05-18 10:07:15
+Status,Delivered
+
+Order Information
+Service Type,Whole Plasmid Sequencing
+Sample Type,Purified DNA
+Total Samples,6
+Unit Price,$10.50
+Total Price,$63.00
+PO Number,-
+
+Submitter Information
+Name,Daniel Ong
+Email,ongdj@umich.edu
+Payment,Per Order
+Retest Request,No
+
+Lab & Billing Details
+Institution,University of Michigan
+Principal Investigator,Narayan Alison
+Lab Phone,N/A
+PI Email,N/A
+Physical Address,"Mary SUe Coleman Hall, Rm 4259"
+Mailing Address,"Mary Sue Coleman Hall Rm 4259, 210 Washtenaw Ave, Ann Arbor, MI 48109-2216"
+
+DropBox Pickup Location
+Location Name,VB001
+Address,"LSI (University of Michigan) - 210 Washtenaw Avenue, Level 2, Ann Arbor, MI 48109 (Loading Dock)"
+Contact Person,N/A
+Contact Phone,N/A
+Pickup Schedule,Monday-Friday 12PM/6PM
+Additional Notes,None
+
+Samples (6)
+#,Sample ID,DNA Name,Copy number,Conc range,Conc (ng/ul),Plasmid Size (Kb),Vector origin,Notes
+1,DO001,A03_1,low copy,20-400 ng/ul,-,-,-,-
+2,DO002,A03_2,low copy,20-400 ng/ul,-,-,-,-
+3,DO003,A03_3,low copy,20-400 ng/ul,-,-,-,-
+4,DO004,B06_1,low copy,20-400 ng/ul,-,-,-,-
+5,DO005,B06_2,low copy,20-400 ng/ul,-,-,-,-
+6,DO006,B06_3,low copy,20-400 ng/ul,-,-,-,-

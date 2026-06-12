@@ -1,0 +1,10 @@
+Service Order
+Order No,8001
+
+Order Information
+Service Type,WAIS
+Total Samples,1
+
+Samples (1)
+#,Sample ID,DNA Name,F Primer,R Primer,Insert Size (Kb)
+1,SAC001,INS1,StubF,StubR,-

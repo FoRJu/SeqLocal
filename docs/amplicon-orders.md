@@ -1,70 +1,75 @@
-# amplicon-orders.md — order intake for the amplicon tier (M3)
+# amplicon-orders.md — run intake (sample sheet + order detail)
 
-How VirtuizeBio FAIS/WAIS orders become pipeline inputs. **The pipeline never parses the
-order PDFs** — a transcription/LIMS step produces structured records; the PDF stays the
-human artifact. Two assays today (FAIS, WAIS); WAIS insert-inference (no primers) is M3
-Phase 2.
+How a VirtuizeBio run is described to the pipeline. **The pipeline never parses the order
+PDFs** — it reads the real LIMS exports below. Parser: `python/amplicon/orders.py`
+(authoritative); `main.nf` does a light routing parse.
 
-## Inputs
+## 1. Sample sheet — TSV (tab-delimited, despite a `.csv` name)
 
-| Input | What | Schema |
-|-------|------|--------|
-| `samplesheet.csv` | per run: `barcode,sample_id,order_id` | `assets/samplesheet.schema.json` |
-| order record JSON (one per order) | assay + per-sample primers + sizes | `assets/order.schema.json` |
-| `assets/primers.csv` | repo primer registry `name,sequence,notes` | — |
+A metadata preamble, then a header row beginning `Well`, then 96 barcode rows (most empty):
 
-Customer-supplied primers travel in the order's `customer_primers[]` and override/extend
-the repo registry. A primer name with no resolvable sequence (unknown, or a blank registry
-row) **fails loud**.
-
-## PDF column → record field mapping
-
-| PDF (assay) | PDF column | Record field |
-|-------------|-----------|--------------|
-| FAIS | `Primers` | `samples[].single_primer` |
-| FAIS | `Plasmid Size (Kb)` | `samples[].size_kb` |
-| WAIS | `F Primer` | `samples[].primer_f` |
-| WAIS | `R Primer` | `samples[].primer_r` |
-| WAIS | `Amplicon/Insert Size (Kb)` | `samples[].size_kb` |
-| both | `Sample ID` / `DNA Name` | `samples[].sample_id` / `dna_name` |
-
-Primer **orientation comes from how it matches the consensus** (which strand), not the
-`-F`/`-R`/`-Rev`/`-For` suffix in the name.
-
-## Examples (transcribed from the sample orders)
-
-FAIS — `7340110.json`:
-```json
-{ "order_id": "7340110", "assay": "FAIS",
-  "samples": [ { "sample_id": "BH_1", "single_primer": "Lucy-F" } ] }
+```
+Run ID   Operator  Machine  Library ID
+aa051826a  FF
+Plate ID   Operator  Plate Barcode  Barcode Type  ...
+aa051826a  FF                        RBK96
+Well  Barcode    Sample Name  Order                 Sample Type ... Reference Name
+A05   barcode33  pYZ5020C1    ZhonggangHou#7340018#
+A06   barcode41  A03_1        DanielOng#7340017#
+...
 ```
 
-WAIS (F&R primers) — `7340118.json`:
-```json
-{ "order_id": "7340118", "assay": "WAIS",
-  "samples": [ { "sample_id": "SAC001", "primer_f": "NA-3", "primer_r": "HA-Rev" } ] }
+- Only rows with a non-empty **`Sample Name`** and **`Order`** are processed; the rest are
+  unused wells.
+- **`Order` = `Customer#orderid#`** — the order id is the field between the `#`s.
+- **`Sample Name` is the construct name** and equals the order's **`DNA Name`** (the join key).
+
+## 2. Order detail — multi-section CSV (one per order, `Order_<id>.csv`)
+
+```
+Service Order
+Order No,7340017
+...
+Order Information
+Service Type,Whole Plasmid Sequencing
+...
+Samples (6)
+#,Sample ID,DNA Name,Copy number,Conc range,Conc (ng/ul),Plasmid Size (Kb),Vector origin,Notes
+1,DO001,A03_1,low copy,20-400 ng/ul,-,-,-,-
+...
 ```
 
-WAIS (insert, no primers) — `7340073`: **M3 Phase 2** (identify insert vs backbone). Such a
-record (a WAIS sample with no `primer_f`/`primer_r`) is rejected by the loader today.
+- **`Service Type` → assay:** `Whole Plasmid Sequencing → PLASMID`, `WAIS → WAIS`,
+  `FAIS → FAIS` (case-insensitive; loud on unknown).
+- The **`Samples (N)`** table is keyed by **`DNA Name`**. Columns are detected by name, by
+  assay:
+  - **PLASMID:** `Sample ID`, `DNA Name`, `Plasmid Size (Kb)` (often `-` → size estimated
+    from reads at assembly).
+  - **WAIS:** `F Primer`, `R Primer`, `Insert Size (Kb)`.  *(inferred from the WAIS PDF until
+    a real WAIS order CSV is seen.)*
+  - **FAIS:** `Primers`, `Plasmid Size (Kb)`.  *(inferred from the FAIS PDF.)*
+- `-`/blank → `None`.
 
-## What the tier does (per barcode)
+## 3. Join + routing
 
-1. **Consensus** (provisional, ADR-0009): reads → reference-free linear consensus.
-2. **Pileup counts**: realign reads → `pos,A,C,G,T` TSV (the SNP/indel signal → AB1 peaks).
-3. **Primer match + region** (`python/amplicon`):
-   - **FAIS**: locate the single primer → 800 bp downstream of its 3′ end (in the matched
-     strand's direction).
-   - **WAIS**: locate forward + reverse primers → the region between them (RC-aware).
-   - **Not found** → `<barcode>.qc.json` with `status: primer_not_found` ("possible wrong
-     primer selected") and **no AB1**.
-4. **AB1 + FASTA + FASTQ** via `python/ab1synth`, plus a per-sample stage fragment.
+`orders.py` joins on **`(order_id, Sample Name == DNA Name)`** → one `SampleJob` per
+populated barcode, carrying `assay`, primer names (FAIS→single, WAIS→F&R, PLASMID→none),
+`size_kb`, the order `sample_id` (customer label), and `dna_name`. Loud on: malformed
+`Order`, unknown order, unmatched sample name, missing required primers.
+
+`main.nf` routes by assay: **`FAIS|WAIS → amplicon`** (M3), **`PLASMID → plasmid`** (M4).
+Barcodes not in the sheet are dropped.
+
+## 4. Primer registry (amplicon tiers)
+
+Named primers resolve from `assets/primers.csv` (repo) + any customer primers; unknown/blank
+→ loud. See `docs/RUNNING.md` and the FAIS/WAIS flow in this repo's amplicon tier.
 
 ## Run
 
 ```bash
 bin/ont_pipeline.sh --pod5_dir <dir> --barcode_kit <KIT> --outdir results \
-  --samplesheet samplesheet.csv --orders_dir orders/ [--primers assets/primers.csv]
+  --samplesheet aa051826a.csv --orders_dir orders/   # orders/ holds Order_<id>.csv
 ```
-Without `--samplesheet` the pipeline behaves as M1 (basecall + demux only).
-Outputs land in `results/amplicon/<barcode>/`.
+Without `--samplesheet`, the pipeline runs M1 (basecall + demux) only. Fixtures live in
+`assets/test/` (real `aa051826a` sheet + `Order_7340017/18.csv`) and `assets/test/stub/`.

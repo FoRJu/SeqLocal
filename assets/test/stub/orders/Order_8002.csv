@@ -1,0 +1,10 @@
+Service Order
+Order No,8002
+
+Order Information
+Service Type,FAIS
+Total Samples,1
+
+Samples (1)
+#,Sample ID,DNA Name,Primers,Plasmid Size (Kb)
+1,BH1,FOC1,StubF,-

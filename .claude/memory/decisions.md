@@ -273,6 +273,37 @@ Status values: Accepted · Superseded · Open (pending benchmark).
   GPU polish is not byte-deterministic — provenance records output, per the basecall caveat.
   Per-sample manifest assembly (run-manifest is run-level) remains a deferred follow-up.
 
+## ADR-0011 — Real intake formats (sample sheet TSV + order-detail CSV)
+
+- **Date:** 2026-06-12
+- **Status:** Accepted (supersedes the M3 Phase 1 placeholder intake)
+- **Context:** M3 Phase 1 assumed a `barcode,sample_id,order_id` CSV + per-order JSON. The
+  real VirtuizeBio LIMS exports (run `aa051826a.csv`, `Order_7340017.csv`,
+  `Order_7340018.csv`) are different shapes, and tier routing depends on parsing them right.
+- **Decision:**
+  - **Sample sheet = TSV** (tab-delimited despite `.csv`): metadata preamble, a header row
+    beginning `Well`, then 96 rows (most empty). Process only rows with `Sample Name` +
+    `Order`; `Order = Customer#orderid#`. **`Sample Name` == the order's `DNA Name`** (the
+    join key — not the order's Sample ID).
+  - **Order detail = multi-section CSV** per order (`Order_<id>.csv`): `Order No`,
+    `Service Type`, and a `Samples (N)` table keyed by `DNA Name`. **`Service Type → assay`**:
+    `Whole Plasmid Sequencing→PLASMID`, `WAIS→WAIS`, `FAIS→FAIS`. Sample columns detected by
+    name per assay (PLASMID: `Plasmid Size (Kb)`; WAIS: `F/R Primer`,`Insert Size`; FAIS:
+    `Primers`). WAIS/FAIS column names are **inferred from the PDFs** until a real WAIS/FAIS
+    order CSV arrives (both examples were Whole Plasmid).
+  - `python/amplicon/orders.py` is the authoritative parser (stdlib `csv`); `main.nf` does a
+    light routing-only parse (range-based, not C-style for — the strict Nextflow parser
+    rejects C-style loops and `import`). Orders dir holds `Order_*.csv`; PRIMER_REGION globs
+    `*.csv` (was `*.json`).
+  - **Genome size:** Whole-plasmid orders rarely declare size (`-`). `AUTOCYCLER_ASSEMBLE`
+    estimates it from the reads (`seqkit stats -a` N50) when undeclared, default fallback;
+    the value + source are logged in the manifest.
+  - Retired the obsolete `assets/{samplesheet,order}.schema.json` (described the old JSON);
+    format reference is now `docs/amplicon-orders.md`.
+- **Consequences:** real run sheets parse correctly (verified: `aa051826a` → 9 jobs across two
+  Whole-Plasmid orders). The pending M4 box plasmid run uses 7340017/7340018 (both PLASMID).
+  A real WAIS/FAIS order CSV is still needed to confirm those Sample-column names.
+
 ---
 
 ## Open — pending empirical benchmark (resolve in M7, record outcomes here)

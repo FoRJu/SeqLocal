@@ -1,8 +1,0 @@
-{
-  "order_id": "7340118",
-  "assay": "WAIS",
-  "customer": "System Admin (stub fixture)",
-  "samples": [
-    { "sample_id": "SAC001", "dna_name": "1", "primer_f": "StubF", "primer_r": "StubR" }
-  ]
-}

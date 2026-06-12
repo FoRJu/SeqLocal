@@ -1,0 +1,41 @@
+Service Order
+Order No,7340018
+Date Submitted,2026-05-18 17:07:36
+Status,Delivered
+
+Order Information
+Service Type,Whole Plasmid Sequencing
+Sample Type,Purified DNA
+Total Samples,3
+Unit Price,$10.50
+Total Price,$31.50
+PO Number,-
+
+Submitter Information
+Name,Zhonggang Hou
+Email,houzg@umich.edu
+Payment,Monthly Billing
+Retest Request,No
+
+Lab & Billing Details
+Institution,University of Michigan
+Principal Investigator,Yan Zhang
+Lab Phone,7346475830
+PI Email,houzg@umich.edu
+Physical Address,Room 3240 MSRB3
+Mailing Address,"Room 3240 MSRB3
+1150 W Medical Center Dr."
+
+DropBox Pickup Location
+Location Name,VB003
+Address,"MSRB II (University of Michigan) - 1150 W Medical Center Dr, Level 2, Ann Arbor, MI 48109 (2575 Cold Room)"
+Contact Person,N/A
+Contact Phone,N/A
+Pickup Schedule,Monday-Friday 12PM/6PM
+Additional Notes,None
+
+Samples (3)
+#,Sample ID,DNA Name,Copy number,Conc range,Conc (ng/ul),Plasmid Size (Kb),Vector origin,Notes
+1,ZH001,pYZ5020C1,low copy,20-400 ng/ul,-,-,-,-
+2,ZH002,pYZ5024C1,low copy,20-400 ng/ul,-,-,-,-
+3,ZH003,pYZ5025C9,low copy,20-400 ng/ul,-,-,-,-

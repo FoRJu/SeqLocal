@@ -1,8 +1,0 @@
-{
-  "order_id": "7340110",
-  "assay": "FAIS",
-  "customer": "Grace Giacoletto (stub fixture)",
-  "samples": [
-    { "sample_id": "BH_1", "dna_name": "BH_1", "single_primer": "StubF" }
-  ]
-}
