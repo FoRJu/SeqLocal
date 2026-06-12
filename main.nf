@@ -12,6 +12,7 @@ include { DORADO_DEMUX    } from './modules/dorado_demux.nf'
 include { BAM_TO_FASTQ    } from './modules/bam_to_fastq.nf'
 include { DEMUX_QC        } from './modules/demux_qc.nf'
 include { MANIFEST_MERGE  } from './modules/manifest_merge.nf'
+include { AMPLICON        } from './workflows/amplicon.nf'
 
 // ---- Param validation -------------------------------------------------------
 def required(name, value) {
@@ -29,6 +30,28 @@ workflow {
     }
 
     BASECALL_DEMUX(file(params.pod5_dir, checkIfExists: true))
+
+    // ---- Service-tier routing (M3) ------------------------------------------
+    // With --samplesheet, route the demuxed per-barcode reads to their service tier.
+    // Phase 1: the amplicon tier (FAIS/WAIS). Barcodes absent from the sheet (controls,
+    // unused) are dropped here rather than failing downstream.
+    if (params.samplesheet) {
+        def sheet = file(params.samplesheet, checkIfExists: true)
+        def wanted = sheet.readLines()
+            .drop(1)                                  // header
+            .findAll { it?.trim() }
+            .collect { it.split(',')[0].trim() }      // barcode column
+            .toSet()
+
+        ch_routed = BASECALL_DEMUX.out.fastq.filter { barcode, fq -> wanted.contains(barcode) }
+
+        AMPLICON(
+            ch_routed,
+            sheet,
+            file(params.orders_dir, checkIfExists: true),
+            file(params.primers, checkIfExists: true)
+        )
+    }
 }
 
 // ---- Subworkflow ------------------------------------------------------------

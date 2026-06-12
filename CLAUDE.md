@@ -7,11 +7,15 @@ rather than silently diverging.
 
 ## Current status
 
-- **M0 (environment), M1 (basecall + demux) + hardening retrofit, and M2 (AB1 synthesizer):
-  complete. M3 (amplicon tier) is next.**
-- M2 (ADR-0008) is the bespoke ABIF writer in `python/ab1synth/`, built and tested in
-  isolation (Biopython round-trip + byte-determinism); delivery modes are parameters and the
-  WAIS/FAIS primer detection that computes their windows is M3.
+- **M0, M1 (+ hardening retrofit), M2 (AB1 synthesizer), and M3 Phase 1 (amplicon tier,
+  explicit-primer FAIS/WAIS): complete. M3 Phase 2 (real assembly + circularization, WAIS
+  insert-inference; shared with M4) is next.**
+- M2 (ADR-0008) is the bespoke ABIF writer in `python/ab1synth/` (Biopython round-trip +
+  byte-determinism). M3 Phase 1 (ADR-0009) adds `python/amplicon/` — structured order intake
+  (never PDFs), two-tier named-primer registry, IUPAC fuzzy primer matching + FAIS/WAIS region
+  extraction with primer-not-found QC — and a `--samplesheet` tier router in `main.nf`. The
+  amplicon **consensus is a provisional linear seam**; real assembly/circularization and the
+  assembler/polisher benchmark stay open (Phase 2 / M4 / M7).
 - The **Production hardening & integrity** section below applies to ALL milestones. The
   M1 retrofit (ADR-0007) is done: M1 emits a schema-validated run manifest with per-stage
   sha256 hashing, and `bin/ont_pipeline.sh` enforces the non-root/`bfxsvc`, kill-flag,

@@ -196,6 +196,45 @@ Status values: Accepted · Superseded · Open (pending benchmark).
   reusable by the amplicon tier. The trace is synthetic (fixed Gaussian peaks, flat
   baseline) — faithful enough for Sanger viewers, not a literal instrument trace.
 
+## ADR-0009 — Amplicon tier intake + provisional-consensus seam (M3 Phase 1)
+
+- **Date:** 2026-06-11
+- **Status:** Accepted (Phase 1; provisional consensus revisited at M3 Phase 2 / M4)
+- **Context:** Real VirtuizeBio orders (FAIS 7340110/7340113; WAIS 7340118/7340073) define
+  the amplicon tier. Clarified with the lab: primers are **named** (two-tier resolve: repo
+  `assets/primers.csv` + customer primers); inputs are **structured** (`samplesheet.csv`
+  `barcode,sample_id,order_id` + per-order JSON), **never the PDFs**; and the consensus is
+  meant to be real **assembly + circularization** capturing SNP/indel for the AB1 — a heavy
+  core that overlaps M4 and the M7 assembler/polisher benchmark.
+- **Decision:**
+  - **Build the bespoke, order-specific logic now, at the consensus boundary** (same
+    isolation that made M2 work): `python/amplicon/` — IUPAC-aware fuzzy primer matching on
+    both strands (`match.py`), FAIS 800 bp / WAIS between-primer region extraction with
+    RC-aware orientation (`region.py`), two-tier primer registry (`registry.py`), and
+    sample-sheet/order load+validate+join (`orders.py`). Deterministic; unit-tested with
+    synthetic consensus. Orientation is decided by the matched strand, not the name suffix.
+  - **No PDF parsing.** Structured records only; schemas in `assets/{samplesheet,order}.schema.json`;
+    mapping documented in `docs/amplicon-orders.md`.
+  - **Primer-not-found is a recognized QC outcome**, not a crash: write `<barcode>.qc.json`
+    with `status=primer_not_found` ("possible wrong primer selected") and emit **no AB1**.
+    Real intake errors (unknown order, bad sheet) fail loud.
+  - **Consensus is a provisional, modular seam**: Phase 1 uses a reference-free **linear**
+    consensus (longest-read draft → minimap2 realign → `samtools consensus`) + pileup counts
+    (minimap2 → `samtools mpileup` → `python/amplicon/pileup.py`). **No de novo assembler
+    added, no circularization yet.** The real assembler (Flye/Autocycler/wf-clone-validation)
+    drops into `AMPLICON_CONSENSUS` at Phase 2/M4; the **assembler/polisher benchmark stays
+    open → M7**. Interface fixed: reads → (consensus.fasta, counts.tsv).
+  - **Routing:** `main.nf` gains a tier router keyed on `--samplesheet`; barcodes absent from
+    the sheet are dropped. The amplicon subworkflow emits per-sample AB1/FASTA/FASTQ + QC +
+    a valid provenance stage fragment. The run-level manifest (M1) is unchanged; per-sample
+    manifest assembly (`service_tier` is genuinely per-sample, not run-level) is a follow-up.
+- **Deferred (named):** WAIS insert-inference, no primers (7340073) → Phase 2; real
+  assembly + circularization → Phase 2/M4; "classic" format, annotation/variants → later/M5.
+- **Consequences:** the genuinely new, customer-facing logic is testable now (46 unit tests;
+  byte-deterministic AB1; stub-run end-to-end through both assays). The provisional consensus
+  is honestly linear/uncircularized — adequate to validate the region/primer logic, replaced
+  before production by the M4 assembler.
+
 ---
 
 ## Open — pending empirical benchmark (resolve in M7, record outcomes here)

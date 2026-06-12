@@ -41,6 +41,15 @@ each stage as it is written. Only the external infrastructure is deferred (M6/M8
   `python/provenance/`. "classic" format deferred here → M3.
 - **M3 — Amplicon tier.** Primer-anchored orientation → consensus → AB1 + FASTQ +
   FASTA + classic, plus the "single primer + 800 bp strict cutoff" mode.
+  - **Phase 1 [DONE — ADR-0009]:** explicit-primer cases (FAIS single primer + 800 bp; WAIS
+    F&R between-primer). Structured intake (`samplesheet.csv` + per-order JSON + two-tier
+    primer registry — never the PDFs); `python/amplicon/` fuzzy IUPAC primer matching +
+    region extraction with primer-not-found QC; provisional reference-free **linear**
+    consensus + pileup counts → `python/ab1synth` AB1/FASTA/FASTQ; `main.nf` tier router on
+    `--samplesheet`. Order→record mapping in `docs/amplicon-orders.md`.
+  - **Phase 2 [NEXT]:** real assembly + circularization in `AMPLICON_CONSENSUS` (shared with
+    M4; assembler/polisher benchmark = M7), and **WAIS insert-inference** (no primers,
+    7340073: identify insert vs backbone). Plus per-sample manifest assembly + "classic".
 - **M4 — Plasmid tier.** Assembly (benchmark wf-clone-validation vs Autocycler) →
   dnaapler reorient → polish (benchmark Medaka vs Dorado polish) → circular consensus
   + per-base QC. (Rasusa subsample seed MUST be pinned + logged — see Determinism.)

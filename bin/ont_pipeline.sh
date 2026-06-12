@@ -12,9 +12,13 @@
 #
 # Usage:
 #   bin/ont_pipeline.sh --pod5_dir <dir> --barcode_kit <KIT> [--outdir results] \
+#     [--samplesheet FILE --orders_dir DIR [--primers FILE]]   # M3 amplicon routing \
 #     [--run_id ID] [--sample_id ID] [--service_tier TIER] [--site_id ID] \
 #     [--instrument MinION|PromethION] [--flow_cell_id ID] [--run_uuid UUID] \
 #     [-- <extra nextflow args>]
+#
+# With --samplesheet, demuxed barcodes are routed to their service tier (M3 amplicon:
+# FAIS/WAIS). Without it, the pipeline runs M1 only (basecall + demux).
 #
 # Env:
 #   PROFILE                    Nextflow profile (default: conda). e.g. PROFILE=docker
@@ -35,6 +39,9 @@ CODE_HASH_BASELINE_FILE="/var/lib/seqlocal/code.sha256"
 POD5_DIR=""
 BARCODE_KIT=""
 OUTDIR="results"
+SAMPLESHEET=""
+ORDERS_DIR=""
+PRIMERS=""
 RUN_ID=""
 SAMPLE_ID=""
 SERVICE_TIER=""
@@ -49,6 +56,9 @@ while [[ $# -gt 0 ]]; do
     --pod5_dir)     POD5_DIR="$2"; shift 2 ;;
     --barcode_kit)  BARCODE_KIT="$2"; shift 2 ;;
     --outdir)       OUTDIR="$2"; shift 2 ;;
+    --samplesheet)  SAMPLESHEET="$2"; shift 2 ;;
+    --orders_dir)   ORDERS_DIR="$2"; shift 2 ;;
+    --primers)      PRIMERS="$2"; shift 2 ;;
     --run_id)       RUN_ID="$2"; shift 2 ;;
     --sample_id)    SAMPLE_ID="$2"; shift 2 ;;
     --service_tier) SERVICE_TIER="$2"; shift 2 ;;
@@ -168,6 +178,9 @@ NF_ARGS=(
   --integrity_verified "${INTEGRITY_VERIFIED}"
   --kill_flag_present false
 )
+[[ -n "${SAMPLESHEET}" ]]  && NF_ARGS+=(--samplesheet "${SAMPLESHEET}")
+[[ -n "${ORDERS_DIR}" ]]   && NF_ARGS+=(--orders_dir "${ORDERS_DIR}")
+[[ -n "${PRIMERS}" ]]      && NF_ARGS+=(--primers "${PRIMERS}")
 [[ -n "${GIT_COMMIT}" ]]   && NF_ARGS+=(--git_commit "${GIT_COMMIT}")
 [[ -n "${RUN_ID}" ]]       && NF_ARGS+=(--run_id "${RUN_ID}")
 [[ -n "${SAMPLE_ID}" ]]    && NF_ARGS+=(--sample_id "${SAMPLE_ID}")

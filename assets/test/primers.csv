@@ -1,0 +1,5 @@
+# Stub-only primer registry matching the AMPLICON_CONSENSUS stub consensus
+# (TTTAAACCC...GGGATCGATCGATCAAA...TGCATGCAA). Not real lab primers.
+name,sequence,notes
+StubF,TTTAAACCC,stub forward (matches + at start)
+StubR,TTGCATGCA,stub reverse (revcomp matches - near end)

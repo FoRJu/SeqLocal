@@ -1,0 +1,13 @@
+# SeqLocal repo-level primer registry. Resolved by python/amplicon/registry.py.
+# Customer-supplied primers (in an order's customer_primers[]) override/extend these.
+# A primer used by an order MUST have a non-empty IUPAC sequence here (or be supplied by
+# the customer) — an empty/missing sequence fails loud at resolve time. Fill the TODOs
+# from the lab's primer master list. Lines starting with '#' are comments.
+name,sequence,notes
+Lucy-F,,TODO: fill sequence (FAIS forward; order 7340110)
+Ssmch-R,,TODO: fill sequence (FAIS reverse; order 7340113)
+WPRE-R,,TODO: fill sequence (FAIS reverse; order 7340113)
+NA-3,,TODO: fill sequence (WAIS forward; order 7340118)
+HA-Rev,,TODO: fill sequence (WAIS reverse; order 7340118)
+IRES-For,,TODO: fill sequence (WAIS forward; order 7340118)
+EBV-Rev,,TODO: fill sequence (WAIS reverse; order 7340118)
