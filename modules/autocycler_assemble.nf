@@ -26,8 +26,9 @@ process AUTOCYCLER_ASSEMBLE {
     """
     started=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
-    # 1) Independent read subsets for assembly diversity.
-    autocycler subsample --reads "${reads}" --out_dir subsamples --genome_size ${genome_size}
+    # 1) Independent read subsets for assembly diversity (seed logged for determinism).
+    autocycler subsample --reads "${reads}" --out_dir subsamples \\
+        --genome_size ${genome_size} --seed ${params.subsample_seed}
 
     # 2) Run several assemblers on each subset (the multi-assembler guardrail).
     mkdir -p assemblies
@@ -63,7 +64,7 @@ process AUTOCYCLER_ASSEMBLE {
         --name assemble --tool autocycler \\
         --tool-version "\$(autocycler --version 2>&1 | grep -oE '[0-9]+\\.[0-9]+\\.[0-9]+' | head -n1)" \\
         --param assemblers=flye+raven+miniasm --param genome_size=${genome_size} \\
-        --param barcode=${barcode} \\
+        --param subsample_seed=${params.subsample_seed} --param barcode=${barcode} \\
         --input "${reads}" --output consensus.fasta \\
         --started "\$started" --finished "\$finished" --status ok \\
         --out assemble.stage.json

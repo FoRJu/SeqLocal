@@ -28,8 +28,12 @@ process DORADO_POLISH {
         | samtools sort -@ ${task.cpus} -o aln.bam -
     samtools index aln.bam
 
+    # dorado polish: positional args are (in_aln_bam, in_draft_fastx). --bacteria optimises
+    # for plasmids/bacteria; --models-directory finds or auto-downloads the polish model.
     "${params.dorado_bin}" polish \\
         --device ${params.cuda_device} \\
+        --bacteria \\
+        --models-directory "${params.dorado_models_dir}" \\
         aln.bam "${draft}" > consensus.fasta
 
     finished=\$(date -u +%Y-%m-%dT%H:%M:%SZ)
