@@ -18,10 +18,12 @@ insert analysis.
 
 ## Status
 
-**M0 (environment), M1 (basecall + demux), and the M1 hardening retrofit — complete.**
+**M0 (environment), M1 (basecall + demux) + hardening retrofit, and M2 (AB1 synthesizer) — complete.**
 M1 turns POD5 into per-barcode BAM/FASTQ + QC and emits a schema-validated run manifest
 (per-stage sha256 provenance); `bin/ont_pipeline.sh` enforces the non-root / kill-flag /
-integrity / MinKNOW-yield chokepoint. **M2 (AB1 synthesizer) is next.** See `docs/PLAN.md`.
+integrity / MinKNOW-yield chokepoint. M2 is the bespoke ABIF (`.ab1`) writer in
+`python/ab1synth/` (Biopython round-trip + byte-deterministic). **M3 (amplicon tier) is
+next.** See `docs/PLAN.md`.
 
 ## Quick start (provisioning)
 

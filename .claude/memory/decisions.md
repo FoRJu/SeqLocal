@@ -159,6 +159,43 @@ Status values: Accepted · Superseded · Open (pending benchmark).
   record baseline → run), but uncommitted edits are not reflected until tracked. M2
   reuses `python/provenance/` directly.
 
+## ADR-0008 — AB1 synthesizer design (M2)
+
+- **Date:** 2026-06-11
+- **Status:** Accepted
+- **Context:** ONT has no fluorescence, so a Sanger `.ab1` chromatogram must be synthesized
+  from the read pileup's per-position base composition over a consensus. Biopython reads
+  ABIF but cannot write it — the encoder is bespoke. Per the scope decision, M2 builds the
+  ABIF encoder **in isolation** (deterministic, unit-tested against a known consensus);
+  primer detection (WAIS start+end, FAIS start +800 bp) is M3.
+- **Decision:**
+  - **Input contract = consensus + per-position A/C/G/T pileup counts (TSV).** The read →
+    counts step (alignment + mpileup) is M3; decoupling here keeps M2 free of
+    minimap2/pysam and trivially testable with synthetic counts. Consensus is FASTA
+    (quality derived from pileup support of the called base) or FASTQ (use its Phred).
+  - **Delivery modes are parameters, not primers:** full consensus; `--window START:END`
+    (WAIS between-primer); `--max-len N` + `--min-qual Q` hard cutoffs (FAIS 800 bp single
+    read). M3 supplies the coordinates.
+  - **Emitted ABIF tags:** `PBAS1/2`, `PCON1/2`, `FWO_` (`"ACGT"`), `PLOC1/2`,
+    `DATA1-4` (raw) + `DATA9-12` (analyzed), `SMPL1`. `PBAS2`/`PCON2` are what Biopython
+    reads as seq/quality; the DATA/FWO_/PLOC set makes it a real chromatogram. Byte layout
+    in `docs/abif-format-notes.md`.
+  - **Determinism:** directory entries sorted by (name, number); **no wall-clock
+    RUND/RUNT tags**; integer trace → byte-identical `.ab1` for identical input. Quality is
+    **consensus-derived, not Sanger Phred** (flagged), capped < 128 (60 derived / 93
+    supplied) so `PCON` bytes survive Biopython's utf-8 decode.
+  - **Validation (canonical):** round-trip through **Biopython** (the authoritative ABIF
+    reader). Added **`biopython=1.87`** (conda-forge — bioconda's listing is stale at 1.70)
+    to `environment.yml`; M3 needs it too. Package ships a minimal stdlib reader for
+    structural self-tests so they run without the dependency.
+  - Provenance: the `ab1synth` CLI reuses `python/provenance/manifest.py` to emit a stage
+    fragment (ab1synth version, consensus sha256, AB1 sha256, params, seed=null) — the
+    PLAN.md M2 hardening seam; M3 wires it into the Nextflow run manifest.
+  - **"classic" delivery format deferred to M3** (per user). M2 emits AB1 + FASTA + FASTQ.
+- **Consequences:** A pure-stdlib, deterministic ABIF writer validated against Biopython,
+  reusable by the amplicon tier. The trace is synthetic (fixed Gaussian peaks, flat
+  baseline) — faithful enough for Sanger viewers, not a literal instrument trace.
+
 ---
 
 ## Open — pending empirical benchmark (resolve in M7, record outcomes here)

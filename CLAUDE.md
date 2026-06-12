@@ -7,14 +7,17 @@ rather than silently diverging.
 
 ## Current status
 
-- **M0 (environment), M1 (basecall + demux), and the M1 hardening retrofit: complete.
-  M2 (AB1 synthesizer) is next.**
+- **M0 (environment), M1 (basecall + demux) + hardening retrofit, and M2 (AB1 synthesizer):
+  complete. M3 (amplicon tier) is next.**
+- M2 (ADR-0008) is the bespoke ABIF writer in `python/ab1synth/`, built and tested in
+  isolation (Biopython round-trip + byte-determinism); delivery modes are parameters and the
+  WAIS/FAIS primer detection that computes their windows is M3.
 - The **Production hardening & integrity** section below applies to ALL milestones. The
   M1 retrofit (ADR-0007) is done: M1 emits a schema-validated run manifest with per-stage
   sha256 hashing, and `bin/ont_pipeline.sh` enforces the non-root/`bfxsvc`, kill-flag,
   code-integrity, and MinKNOW-yield chokepoint. The provenance plumbing
-  (`python/provenance/`, `assets/run-manifest.schema.json`) is reused by M2 onward — every
-  new stage MUST emit its manifest block. Pipeline entry is `main.nf` at the repo root.
+  (`python/provenance/`, `assets/run-manifest.schema.json`) is reused by every new stage —
+  each MUST emit its manifest block. Pipeline entry is `main.nf` at the repo root.
 
 ## What this project is
 

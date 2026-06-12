@@ -29,13 +29,16 @@ each stage as it is written. Only the external infrastructure is deferred (M6/M8
     3. ✅ sha256 of inputs and outputs recorded per stage; finalized by `MANIFEST_MERGE`.
     4. ✅ Integrity + kill-flag (+ MinKNOW yield) chokepoint in `ont_pipeline.sh`.
     Provenance plumbing lives in `python/provenance/` and is reused by M2 onward.
-- **M2 — AB1 synthesizer (bespoke). [NEXT]** The one component with no off-the-shelf
-  equivalent — build and unit-test in isolation against a known consensus before
-  wiring it into any tier. See "AB1 algorithm" below. **Hardening seams M2 must carry:**
-  runs as `bfxsvc`; emits a manifest block (ab1synth version, input consensus sha256,
-  output AB1 sha256, any tie-break seed, timestamps, status); pileup ordering is
-  deterministic so the same input yields a byte-identical AB1; inputs validated at the
-  module boundary; failure is loud, not a silent empty AB1.
+- **M2 — AB1 synthesizer (bespoke). [DONE — ADR-0008]** The one component with no
+  off-the-shelf equivalent, built and unit-tested **in isolation** against a known
+  consensus (`python/ab1synth/`: stdlib ABIF writer + trace synth + CLI). Input contract is
+  consensus + per-position A/C/G/T pileup counts; delivery modes (full / `--window` /
+  `--max-len` / `--min-qual`) are parameters — the primer detection that computes WAIS/FAIS
+  windows is M3. Validated by **Biopython round-trip** + byte-determinism. Hardening seams
+  carried: deterministic (byte-identical AB1; no wall-clock tags); inputs validated at the
+  boundary; loud failure (never a silent empty AB1); emits a provenance stage fragment
+  (ab1synth version, consensus sha256, AB1 sha256, params, seed=null) via
+  `python/provenance/`. "classic" format deferred here → M3.
 - **M3 — Amplicon tier.** Primer-anchored orientation → consensus → AB1 + FASTQ +
   FASTA + classic, plus the "single primer + 800 bp strict cutoff" mode.
 - **M4 — Plasmid tier.** Assembly (benchmark wf-clone-validation vs Autocycler) →

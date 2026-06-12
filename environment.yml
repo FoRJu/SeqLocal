@@ -31,3 +31,6 @@ dependencies:
   # Subsampling + length/quality filtering
   - rasusa=4.1.0
   - filtlong=0.3.1
+  # Sequence I/O — the canonical ABIF reader for the AB1 round-trip check (M2,
+  # ADR-0008) and amplicon-tier parsing (M3). conda-forge build (bioconda is stale).
+  - biopython=1.87
