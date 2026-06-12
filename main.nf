@@ -13,6 +13,7 @@ include { BAM_TO_FASTQ    } from './modules/bam_to_fastq.nf'
 include { DEMUX_QC        } from './modules/demux_qc.nf'
 include { MANIFEST_MERGE  } from './modules/manifest_merge.nf'
 include { AMPLICON        } from './workflows/amplicon.nf'
+include { PLASMID         } from './workflows/plasmid.nf'
 
 // ---- Param validation -------------------------------------------------------
 def required(name, value) {
@@ -31,26 +32,46 @@ workflow {
 
     BASECALL_DEMUX(file(params.pod5_dir, checkIfExists: true))
 
-    // ---- Service-tier routing (M3) ------------------------------------------
-    // With --samplesheet, route the demuxed per-barcode reads to their service tier.
-    // Phase 1: the amplicon tier (FAIS/WAIS). Barcodes absent from the sheet (controls,
-    // unused) are dropped here rather than failing downstream.
+    // ---- Service-tier routing (M3/M4) ---------------------------------------
+    // With --samplesheet, dispatch each demuxed barcode to its service tier by the order's
+    // assay: FAIS/WAIS -> amplicon (M3), PLASMID -> plasmid (M4). Barcodes absent from the
+    // sheet (controls/unused) are dropped. This Groovy parse only ROUTES; python/amplicon
+    // does the authoritative order validation inside the tier.
     if (params.samplesheet) {
         def sheet = file(params.samplesheet, checkIfExists: true)
-        def wanted = sheet.readLines()
-            .drop(1)                                  // header
-            .findAll { it?.trim() }
-            .collect { it.split(',')[0].trim() }      // barcode column
-            .toSet()
+        def slurper = new groovy.json.JsonSlurper()
+        def orders = [:]
+        file(params.orders_dir, checkIfExists: true).listFiles()
+            .findAll { it.name.endsWith('.json') }
+            .each { f -> def o = slurper.parse(f); orders[o.order_id as String] = o }
 
-        ch_routed = BASECALL_DEMUX.out.fastq.filter { barcode, fq -> wanted.contains(barcode) }
+        // barcode -> [assay, genome_size_bp]
+        def route = [:]
+        sheet.readLines().drop(1).findAll { it?.trim() }.each { line ->
+            def cols = line.split(',').collect { it.trim() }
+            def (bc, sid, oid) = [cols[0], cols[1], cols[2]]
+            def o = orders[oid]
+            if (o) {
+                def sample = o.samples.find { it.sample_id == sid }
+                def kb = sample?.size_kb
+                route[bc] = [assay: o.assay as String,
+                             size_bp: (kb ? (kb.toDouble() * 1000) as long : params.default_genome_size as long)]
+            }
+        }
+
+        ch_amplicon = BASECALL_DEMUX.out.fastq
+            .filter { bc, fq -> route[bc]?.assay in ['FAIS', 'WAIS'] }
+        ch_plasmid = BASECALL_DEMUX.out.fastq
+            .filter { bc, fq -> route[bc]?.assay == 'PLASMID' }
+            .map    { bc, fq -> tuple(bc, fq, route[bc].size_bp) }
 
         AMPLICON(
-            ch_routed,
+            ch_amplicon,
             sheet,
-            file(params.orders_dir, checkIfExists: true),
+            file(params.orders_dir),
             file(params.primers, checkIfExists: true)
         )
+        PLASMID(ch_plasmid)
     }
 }
 

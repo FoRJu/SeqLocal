@@ -235,6 +235,44 @@ Status values: Accepted · Superseded · Open (pending benchmark).
   is honestly linear/uncircularized — adequate to validate the region/primer logic, replaced
   before production by the M4 assembler.
 
+## ADR-0010 — Assembly/consensus core + plasmid tier (M4)
+
+- **Date:** 2026-06-11
+- **Status:** Accepted (provisional engine choices revisited at the M7 benchmark)
+- **Context:** The amplicon tier (M3 Phase 1) used a provisional linear consensus. The lab
+  confirmed samples are plasmids / long amplicons that must be **assembled + circularized**
+  (SNP/indel captured for the AB1). M4 builds the real shared assembly core + the tier-1
+  plasmid deliverable. This intersects the M7 benchmarks, so engine choices are provisional.
+- **Decision (confirmed with the user this session):**
+  - **Assembler = Autocycler multi-assembler.** subsample → **Flye + raven + miniasm
+    (+minipolish)** → `autocycler compress/cluster/trim/resolve/combine` → one consensus.
+    This honors the CLAUDE.md guardrail "never a single assembler for circular plasmids
+    (Flye concatemers)". It is the **custom side of the M7 benchmark**, built now;
+    wf-clone-validation remains the M7 comparator (not built).
+  - **Polisher = `dorado polish`** (2.0.0 host binary, GPU; ADR-0010): ONT's high-accuracy
+    assembly polisher, no env change, sidesteps the bioconda-medaka issues (ADR-0003). The
+    Medaka-vs-dorado-polish benchmark stays open → M7. `bin/install_dorado.sh` fetches the
+    polish model alongside the v6.0 basecall models.
+  - **Reorient with dnaapler** (guardrail: consistent circular start); non-circular passes through.
+  - **Env additions (pinned, ADR-0002 lockstep):** `flye=2.9.6`, `raven-assembler=1.8.3`,
+    `miniasm=0.3`, `minipolish=0.2.1`, `any2fasta=0.8.1` (racon transitive via minipolish,
+    captured by conda-lock). `autocycler=0.6.2` already pinned.
+  - **Subsampling:** `autocycler subsample` (designed for multi-assembly independence)
+    supersedes the generic Rasusa step on the Autocycler path; Rasusa stays available/seeded
+    for other tiers. The subsample seed + tool versions are logged in the manifest.
+  - **Routing:** `main.nf` dispatches by order **assay** (`FAIS|WAIS → amplicon`,
+    `PLASMID → plasmid`) via a light Groovy parse of the sample sheet + order JSONs; the
+    authoritative order validation stays in `python/amplicon`. Added `PLASMID` to the order
+    assay enum (no primers; needs only `sample_id` + `size_kb`).
+  - **Scope:** shared core + M4 plasmid only. **Deferred:** M3 Phase 2 (swap amplicon
+    consensus to this core + circular-aware primer matching), WAIS insert-inference,
+    advanced-plasmid annotation/variants (M5).
+- **Consequences:** the deterministic Python (per-base QC `amplicon/qc.py`, PLASMID join) is
+  unit-tested on the Mac (51 tests); the assembly/GPU stages are **box-only** (Flye/raven/
+  miniasm/dorado-polish are Linux/GPU) and validated via `-stub-run` for wiring on the Mac.
+  GPU polish is not byte-deterministic — provenance records output, per the basecall caveat.
+  Per-sample manifest assembly (run-manifest is run-level) remains a deferred follow-up.
+
 ---
 
 ## Open — pending empirical benchmark (resolve in M7, record outcomes here)

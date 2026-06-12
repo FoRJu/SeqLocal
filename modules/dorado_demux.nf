@@ -64,6 +64,7 @@ process DORADO_DEMUX {
     mkdir -p demux/stubrun
     touch demux/stubrun/STUB_pass_barcode01_run0_00000000_0.bam
     touch demux/stubrun/STUB_pass_barcode02_run0_00000000_0.bam
+    touch demux/stubrun/STUB_pass_barcode03_run0_00000000_0.bam
     touch demux/stubrun/STUB_pass_unclassified_run0_00000000_0.bam
     printf 'read_id\\tbarcode\\n' > demux/sequencing_summary.txt
 

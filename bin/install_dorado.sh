@@ -56,4 +56,15 @@ echo ">> Available models (filter for v6.0 DNA HAC/SUP):"
 echo ">> To download a model, run e.g.:"
 echo "     ${BIN} download --model <exact-hac-v6-name> --models-directory ${MODELS_DIR}"
 echo "     ${BIN} download --model <exact-sup-v6-name> --models-directory ${MODELS_DIR}"
+
+# --- dorado polish model (M4 assembly polishing, ADR-0010) ----------------------
+# dorado polish needs its own model; like the basecall models, don't hardcode the
+# identifier — list and fetch into the same models dir.
+echo ">> Available polish models:"
+"${BIN}" download --list 2>&1 | grep -Ei 'polish' || {
+  echo "!! No polish models matched in --list output. Inspect the full list and fetch with:"
+  echo "     ${BIN} download --model <exact-polish-name> --models-directory ${MODELS_DIR}"
+}
+echo "   Fetch with: ${BIN} download --model <exact-polish-name> --models-directory ${MODELS_DIR}"
+
 echo ">> Dorado ${DORADO_VERSION} installed. Symlink: ${LINK}"

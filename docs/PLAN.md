@@ -50,9 +50,14 @@ each stage as it is written. Only the external infrastructure is deferred (M6/M8
   - **Phase 2 [NEXT]:** real assembly + circularization in `AMPLICON_CONSENSUS` (shared with
     M4; assembler/polisher benchmark = M7), and **WAIS insert-inference** (no primers,
     7340073: identify insert vs backbone). Plus per-sample manifest assembly + "classic".
-- **M4 — Plasmid tier.** Assembly (benchmark wf-clone-validation vs Autocycler) →
-  dnaapler reorient → polish (benchmark Medaka vs Dorado polish) → circular consensus
-  + per-base QC. (Rasusa subsample seed MUST be pinned + logged — see Determinism.)
+- **M4 — Plasmid tier. [DONE — ADR-0010]** Shared assembly core
+  (`workflows/assemble.nf`): filtlong filter → **Autocycler multi-assembler** (Flye + raven
+  + miniasm, honoring the no-single-assembler guardrail) → dnaapler reorient → **dorado
+  polish** (GPU) → per-base QC. `workflows/plasmid.nf` delivers the circular consensus FASTA
+  + per-base QC FASTQ; `main.nf` routes the `PLASMID` assay. Subsample seed + versions logged.
+  The wf-clone-validation-vs-Autocycler and Medaka-vs-dorado-polish **benchmarks stay open →
+  M7**. Box-only validation (Linux/GPU tools); Mac validates wiring via `-stub-run`. See
+  `docs/plasmid-tier.md`. **Pending: real box run on a control plasmid.**
 - **M5 — Advanced plasmid tier.** M4 + annotation + primer-based insert localization
   + insert-vs-reference variant calls.
 - **M6 — Delivery packaging + signing.** Per-tier output bundles, naming,

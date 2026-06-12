@@ -1,0 +1,8 @@
+{
+  "order_id": "9000001",
+  "assay": "PLASMID",
+  "customer": "Stub fixture (plasmid tier-1)",
+  "samples": [
+    { "sample_id": "PLZ1", "dna_name": "pSTUB1", "size_kb": 0.042 }
+  ]
+}

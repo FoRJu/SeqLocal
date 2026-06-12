@@ -19,6 +19,14 @@ dependencies:
   - python=3.12
   # Assembly / consensus
   - autocycler=0.6.2
+  # Assemblers Autocycler orchestrates (multi-assembler consensus avoids the Flye
+  # concatemer pitfall on circular plasmids — CLAUDE.md guardrail; M4, ADR-0010).
+  # racon is pulled transitively by minipolish and pinned by the conda-lock.
+  - flye=2.9.6
+  - raven-assembler=1.8.3
+  - miniasm=0.3
+  - minipolish=0.2.1
+  - any2fasta=0.8.1
   # Reorientation of circular contigs
   - dnaapler=1.3.0
   # Read manipulation / QC

@@ -9,7 +9,7 @@ import csv
 import json
 from collections import namedtuple
 
-ASSAYS = {"FAIS", "WAIS"}
+ASSAYS = {"FAIS", "WAIS", "PLASMID"}
 
 # A resolved unit of work: one barcode -> one sample -> its assay + primer names.
 SampleJob = namedtuple(
@@ -95,11 +95,12 @@ def join(samplesheet_rows, orders):
             if not single:
                 raise ValueError("FAIS sample %s (order %s) needs single_primer"
                                  % (s["sample_id"], oid))
-        else:  # WAIS
+        elif assay == "WAIS":
             if not (pf and pr):
                 raise ValueError(
                     "WAIS sample %s (order %s) needs both primer_f and primer_r; "
                     "no-primer insert-inference is M3 Phase 2" % (s["sample_id"], oid))
+        # PLASMID (tier 1): no primers — full circular consensus.
         jobs.append(SampleJob(
             barcode=row["barcode"], sample_id=row["sample_id"], order_id=oid, assay=assay,
             single_primer=single, primer_f=pf, primer_r=pr, size_kb=s.get("size_kb"),

@@ -10,8 +10,8 @@
     "order_id": { "type": "string", "minLength": 1 },
     "assay": {
       "type": "string",
-      "enum": ["FAIS", "WAIS"],
-      "description": "FAIS = focused (single primer + 800 bp); WAIS = whole amplicon insert (F&R primers, or insert-inference when none given)"
+      "enum": ["FAIS", "WAIS", "PLASMID"],
+      "description": "FAIS = focused (single primer + 800 bp); WAIS = whole amplicon insert (F&R primers, or insert-inference when none given); PLASMID = full circular consensus (tier 1, no primers)"
     },
     "customer": { "type": "string" },
     "samples": {
